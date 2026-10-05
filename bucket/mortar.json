@@ -1,6 +1,6 @@
 {
   "version": "0.2.2",
-  "description": "Desktop mod manager for Stardew Valley: profiles, SMAPI, Nexus Mods downloads and shareable profiles",
+  "description": "Desktop mod manager for PC games: profiles, mod loader setup, Nexus Mods downloads and shareable profiles",
   "homepage": "https://mortar.rethunk.tech/",
   "license": "AGPL-3.0-only",
   "notes": "Scoop keeps Mortar up to date: run 'scoop update mortar'. Mortar's own updater stays off.",

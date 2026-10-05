@@ -1,6 +1,6 @@
 # Mortar Scoop bucket
 
-[Scoop](https://scoop.sh) manifests for [Mortar](https://mortar.rethunk.tech/), the Stardew Valley mod manager.
+[Scoop](https://scoop.sh) manifests for [Mortar](https://mortar.rethunk.tech/), the desktop mod manager for PC games.
 
 ```powershell
 scoop bucket add mortar https://github.com/Rethunk-Tech/scoop-bucket
