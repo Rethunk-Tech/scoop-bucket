@@ -1,31 +1,42 @@
 {
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Desktop mod manager for Stardew Valley: profiles, SMAPI, Nexus Mods downloads and shareable profiles",
   "homepage": "https://mortar.rethunk.tech/",
   "license": "AGPL-3.0-only",
   "notes": "Scoop keeps Mortar up to date: run 'scoop update mortar'. Mortar's own updater stays off.",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/Rethunk-Tech/mortar/releases/download/v0.2.1/mortar-windows-amd64.exe#/mortar.exe",
-      "hash": "988887166f829bbdf9e25c9405da338e149100115f693009a48f1127cd195a24"
+      "url": "https://github.com/Rethunk-Tech/mortar/releases/download/v0.2.2/mortar-windows-amd64.exe#/mortar.exe",
+      "hash": "4ad5e1cf99d11887f81392f5be78bc13f5adaf0319b3d9656c2fa9f51d128476"
     },
     "arm64": {
-      "url": "https://github.com/Rethunk-Tech/mortar/releases/download/v0.2.1/mortar-windows-arm64.exe#/mortar.exe",
-      "hash": "34879f4bd744b3c46273809158f0c2d167807eb67c94ec6d953e71a3dfcf5aa4"
+      "url": "https://github.com/Rethunk-Tech/mortar/releases/download/v0.2.2/mortar-windows-arm64.exe#/mortar.exe",
+      "hash": "9d159e5daad68fac1f0496d189ae9d58bbbbcb1a9acc90e3d76e9fa68220142e"
     }
   },
   "bin": "mortar.exe",
-  "shortcuts": [["mortar.exe", "Mortar"]],
+  "shortcuts": [
+    [
+      "mortar.exe",
+      "Mortar"
+    ]
+  ],
   "checkver": "github",
   "autoupdate": {
     "architecture": {
       "64bit": {
         "url": "https://github.com/Rethunk-Tech/mortar/releases/download/v$version/mortar-windows-amd64.exe#/mortar.exe",
-        "hash": { "url": "$baseurl/SHA256SUMS", "regex": "$sha256\\s+mortar-windows-amd64\\.exe" }
+        "hash": {
+          "url": "$baseurl/SHA256SUMS",
+          "regex": "$sha256\\s+mortar-windows-amd64\\.exe"
+        }
       },
       "arm64": {
         "url": "https://github.com/Rethunk-Tech/mortar/releases/download/v$version/mortar-windows-arm64.exe#/mortar.exe",
-        "hash": { "url": "$baseurl/SHA256SUMS", "regex": "$sha256\\s+mortar-windows-arm64\\.exe" }
+        "hash": {
+          "url": "$baseurl/SHA256SUMS",
+          "regex": "$sha256\\s+mortar-windows-arm64\\.exe"
+        }
       }
     }
   }
