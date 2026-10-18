@@ -7,4 +7,4 @@ scoop bucket add mortar https://github.com/Rethunk-Tech/scoop-bucket
 scoop install mortar/mortar
 ```
 
-`scoop update mortar` keeps it current; Mortar's own updater stays off when Scoop installed it. Every manifest pins the SHA-256 of each download, taken from the release's `SHA256SUMS` after checking its signature against the Mortar packages key (`3283 6046 06CA E229 5D47 6F98 83BC 8751 EE6F 773D`). A scheduled workflow moves the manifest to each new release.
+`scoop update mortar` keeps it current; Mortar's own updater stays off when Scoop installed it. Every manifest pins the SHA-256 of each download, taken from the release's `SHA256SUMS` after checking its signature against the Mortar packages key (`D8B1 C4C2 05C5 FB36 33CB  8B99 00B7 5959 B637 DCB5`). A scheduled workflow moves the manifest to each new release.
