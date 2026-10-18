@@ -31,9 +31,9 @@ scoop bucket rm mortar
 scripts/update.sh
 ```
 
-Each table entry's latest tag is the public `/releases/latest` redirect (30s). Success stdout: `<name> <version>` per rewritten manifest. Matching `SHA256SUMS` (Mortar: signed) writes `<name> <version> already current` to stderr and leaves that manifest unchanged. A tool whose latest release lacks `SHA256SUMS` or the expected Windows assets prints `<name>: no matching release` on stderr and writes no file.
+Each table entry's latest tag is the public `/releases/latest` redirect (30s). Success stdout: `<name> <version>` per rewritten manifest. Matching checksums (Mortar: signed `SHA256SUMS`; others: `SHA256SUMS` or per-asset `.sha256` as the table names) write `<name> <version> already current` to stderr and leave that manifest unchanged. A tool whose latest release lacks its checksum source or the expected Windows assets prints `<name>: no matching release` on stderr and writes no file.
 
-Mortar: a missing, unsigned, or unreachable `SHA256SUMS` / `SHA256SUMS.asc` is fatal. Other tools: `SHA256SUMS` over HTTPS, hashes checked against that file (not GPG). HTTPS only, connect 15s, max 60s.
+Mortar: a missing, unsigned, or unreachable `SHA256SUMS` / `SHA256SUMS.asc` is fatal. Other tools: checksums over HTTPS, not GPG. HTTPS only, connect 15s, max 60s.
 
 ## Verify
 

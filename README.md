@@ -17,11 +17,11 @@ scoop install mortar/format-dispatch
 | `mortar` | [Mortar](https://mortar.rethunk.tech/) | amd64, arm64 |
 | `rgit` | [rethunk-git-cli](https://github.com/Rethunk-Tech/rethunk-git-cli) | amd64 |
 | `gate` | [rethunk-gate-cli](https://github.com/Rethunk-Tech/rethunk-gate-cli) | amd64 |
-| `format-dispatch` | [claude-format-hooks](https://github.com/Rethunk-Tech/claude-format-hooks) | amd64, arm64 |
+| `format-dispatch` | [claude-format-hooks](https://github.com/Rethunk-Tech/claude-format-hooks) | amd64 |
 
-heft and engined are Homebrew-only until they ship a `windows-amd64` asset.
+heft and engined are omitted: they ship Linux-only assets (engined is a Bun app tree, not a native binary).
 
-**Trust model.** Pins come from each release's `SHA256SUMS` over HTTPS. Mortar also requires `VALIDSIG` for `D8B1 C4C2 05C5 FB36 33CB  8B99 00B7 5959 B637 DCB5` on `SHA256SUMS.asc`. The other tools publish unsigned `SHA256SUMS`; the updater fetches that file with HTTPS-only curl and pins the listed hashes. A tool with no matching release yet is skipped (no placeholder manifest).
+**Trust model.** Mortar pins from signed `SHA256SUMS` (`VALIDSIG` for `D8B1 C4C2 05C5 FB36 33CB  8B99 00B7 5959 B637 DCB5` on `SHA256SUMS.asc`). `rgit` and `gate` pin from unsigned `SHA256SUMS` over HTTPS. `format-dispatch` pins from each asset's `.sha256` file (no `SHA256SUMS`). A tool with no matching release yet is skipped (no placeholder manifest).
 
 Update, uninstall, maintainer bump: [HUMANS.md](HUMANS.md). Layout and invariants: [AGENTS.md](AGENTS.md). Work not built: [TODO.md](TODO.md).
 
