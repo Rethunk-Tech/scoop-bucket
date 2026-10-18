@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Point bucket/*.json at each tool's latest release. Hashes come from SHA256SUMS.
-# Mortar: SHA256SUMS.asc must VALIDSIG the Mortar packages key. Other tools: SHA256SUMS
-# is fetched over HTTPS from GitHub Releases and hashes are taken from that file (no GPG).
-# A tool with no matching Windows asset yet is skipped; Mortar missing SUMS/signature is fatal.
+# Point bucket/*.json at each tool's latest release. Hashes come from the checksum
+# source named in the table (SHA256SUMS, or per-asset <file>.sha256). Mortar:
+# SHA256SUMS.asc must VALIDSIG the Mortar packages key. Other tools: checksums
+# fetched over HTTPS (no GPG). A tool with no matching Windows asset yet is skipped;
+# Mortar missing SUMS/signature is fatal.
 set -euo pipefail
 scripts=$(cd "$(dirname "$0")" && pwd)
 cd "$scripts/.."
@@ -15,6 +16,11 @@ curl_get() {
 }
 sha256() { [[ $1 =~ ^[0-9a-fA-F]{64}$ ]]; }
 hash_of() { awk -v f="$1" '$2 == f {print $1}' "$2"; }
+hash_from_sha256_file() {
+  awk '{
+    for (i = 1; i <= NF; i++) if ($i ~ /^[0-9a-fA-F]{64}$/) { print $i; exit }
+  }' "$1"
+}
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -60,8 +66,8 @@ update_one() {
   fi
 
   base="https://github.com/$repo/releases/download/$tag"
-  amd_file=${amd_pat//\{tag\}/$tag}
-  arm_file=${arm_pat//\{tag\}/$tag}
+  amd_file=${amd_pat//\{VERSION\}/$version}
+  arm_file=${arm_pat//\{VERSION\}/$version}
   install -d "$tmp/$name"
   sums="$tmp/$name/SHA256SUMS"
 
@@ -86,39 +92,70 @@ update_one() {
       echo "error: SHA256SUMS is not signed by $FPR" >&2
       exit 1
     fi
-  else
+  elif [ "$trust" != per-asset ]; then
     if ! curl_get "$sums" "$base/SHA256SUMS"; then
       echo "$name: no matching release" >&2
       return 0
     fi
   fi
 
-  amd=$(hash_of "$amd_file" "$sums")
-  if [ -z "$amd" ]; then
-    if [ "$trust" = gpg ]; then
-      echo "error: SHA256SUMS has no hash for $amd_file" >&2
+  if [ "$trust" = per-asset ]; then
+    if ! curl_get "$tmp/$name/${amd_file}.sha256" "$base/${amd_file}.sha256"; then
+      echo "$name: no matching release" >&2
+      return 0
+    fi
+    amd=$(hash_from_sha256_file "$tmp/$name/${amd_file}.sha256")
+    if [ -z "$amd" ]; then
+      echo "$name: no matching release" >&2
+      return 0
+    fi
+    if ! sha256 "$amd"; then
+      echo "error: hash for $amd_file is not 64 hex characters" >&2
       exit 1
     fi
-    echo "$name: no matching release" >&2
-    return 0
-  fi
-  if ! sha256 "$amd"; then
-    echo "error: SHA256SUMS hash for $amd_file is not 64 hex characters" >&2
-    exit 1
-  fi
-  if [ -n "$arm_file" ]; then
-    arm=$(hash_of "$arm_file" "$sums")
-    if [ -z "$arm" ]; then
+    if [ -n "$arm_file" ]; then
+      if ! curl_get "$tmp/$name/${arm_file}.sha256" "$base/${arm_file}.sha256"; then
+        echo "$name: no matching release" >&2
+        return 0
+      fi
+      arm=$(hash_from_sha256_file "$tmp/$name/${arm_file}.sha256")
+      if [ -z "$arm" ]; then
+        echo "$name: no matching release" >&2
+        return 0
+      fi
+      if ! sha256 "$arm"; then
+        echo "error: hash for $arm_file is not 64 hex characters" >&2
+        exit 1
+      fi
+    fi
+  else
+    amd=$(hash_of "$amd_file" "$sums")
+    if [ -z "$amd" ]; then
       if [ "$trust" = gpg ]; then
-        echo "error: SHA256SUMS has no hash for $arm_file" >&2
+        echo "error: SHA256SUMS has no hash for $amd_file" >&2
         exit 1
       fi
       echo "$name: no matching release" >&2
       return 0
     fi
-    if ! sha256 "$arm"; then
-      echo "error: SHA256SUMS hash for $arm_file is not 64 hex characters" >&2
+    if ! sha256 "$amd"; then
+      echo "error: SHA256SUMS hash for $amd_file is not 64 hex characters" >&2
       exit 1
+    fi
+    if [ -n "$arm_file" ]; then
+      arm=$(hash_of "$arm_file" "$sums")
+      if [ -z "$arm" ]; then
+        if [ "$trust" = gpg ]; then
+          echo "error: SHA256SUMS has no hash for $arm_file" >&2
+          exit 1
+        fi
+        echo "$name: no matching release" >&2
+        return 0
+      fi
+      if ! sha256 "$arm"; then
+        echo "error: SHA256SUMS hash for $arm_file is not 64 hex characters" >&2
+        exit 1
+      fi
     fi
   fi
 
@@ -127,7 +164,11 @@ update_one() {
   out="$tmp/$name.json"
   gh="https://github.com/$repo"
   if [ ! -f "$dest" ]; then
-    notes="Run 'scoop update $name' after this bucket updates. Hashes are pinned from the release SHA256SUMS fetched over HTTPS (not GPG-signed)."
+    if [ "$trust" = per-asset ]; then
+      notes="Run 'scoop update $name' after this bucket updates. Hashes are pinned from each asset's .sha256 file fetched over HTTPS (not GPG-signed)."
+    else
+      notes="Run 'scoop update $name' after this bucket updates. Hashes are pinned from the release SHA256SUMS fetched over HTTPS (not GPG-signed)."
+    fi
     if [ -n "$arm_file" ]; then
       uarm="$base/$arm_file#/$bin"
       jq -n --arg v "$version" --arg desc "$desc" --arg home "$homepage" --arg lic "$license" \
@@ -185,14 +226,16 @@ update_one() {
 }
 
 # name|repo|trust|amd64-asset|arm64-asset|bin|homepage|license|description
-# trust=gpg: VALIDSIG required. trust=https: SHA256SUMS over TLS, hashes checked against that file.
-# {tag} in an asset name is the GitHub release tag (v-prefixed).
+# trust=gpg: VALIDSIG on SHA256SUMS. trust=sha256sums: SHA256SUMS over TLS.
+# trust=per-asset: each <asset>.sha256 over TLS (no SHA256SUMS).
+# {VERSION} in an asset name is the tag without the leading v.
+# Windows Scoop: bare binaries, renamed via url #/bin. No Darwin/linux-only tools.
 while IFS='|' read -r name repo trust amd_pat arm_pat bin homepage license desc; do
   [ -n "$name" ] || continue
   update_one "$name" "$repo" "$trust" "$amd_pat" "$arm_pat" "$bin" "$homepage" "$license" "$desc"
 done <<'TABLE'
 mortar|Rethunk-Tech/mortar|gpg|mortar-windows-amd64.exe|mortar-windows-arm64.exe|mortar.exe|https://mortar.rethunk.tech/|AGPL-3.0-only|Desktop mod manager for PC games: profiles, mod loader setup, Nexus Mods, GitHub and Thunderstore downloads, and shareable profiles
-rgit|Rethunk-Tech/rethunk-git-cli|https|rgit-{tag}-windows-amd64.exe||rgit.exe|https://github.com/Rethunk-Tech/rethunk-git-cli|MIT|Git stages files. rgit stages symbols.
-gate|Rethunk-Tech/rethunk-gate-cli|https|gate-windows-amd64.exe||gate.exe|https://github.com/Rethunk-Tech/rethunk-gate-cli|MIT|Runs a project's gates, captures every byte they write to a log, and reports the verdict.
-format-dispatch|Rethunk-Tech/claude-format-hooks|https|format-dispatch-windows-amd64.exe|format-dispatch-windows-arm64.exe|format-dispatch.exe|https://github.com/Rethunk-Tech/claude-format-hooks|MIT|Claude Code PostToolUse hook that formats a file after Write/Edit.
+rgit|Rethunk-Tech/rethunk-git-cli|sha256sums|rgit-v{VERSION}-windows-amd64.exe||rgit.exe|https://github.com/Rethunk-Tech/rethunk-git-cli|MIT|Symbol-granular git staging and commits
+gate|Rethunk-Tech/rethunk-gate-cli|sha256sums|gate-windows-amd64.exe||gate.exe|https://github.com/Rethunk-Tech/rethunk-gate-cli|MIT|Runs a project's gates concurrently, keeps every byte in a log
+format-dispatch|Rethunk-Tech/claude-format-hooks|per-asset|format-dispatch-windows-amd64.exe||format-dispatch.exe|https://github.com/Rethunk-Tech/claude-format-hooks|MIT|Claude Code PostToolUse format/lint dispatcher hook
 TABLE

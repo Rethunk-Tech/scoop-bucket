@@ -350,11 +350,11 @@ fi
 mortar_row=$(table_body | awk -F'|' '$1=="mortar"{print $2 "|" $3 "|" $4 "|" $5}')
 assert "table-mortar-row" [ "$mortar_row" = "Rethunk-Tech/mortar|gpg|mortar-windows-amd64.exe|mortar-windows-arm64.exe" ]
 rgit_row=$(table_body | awk -F'|' '$1=="rgit"{print $2 "|" $3 "|" $4 "|" $5}')
-assert "table-rgit-row" [ "$rgit_row" = "Rethunk-Tech/rethunk-git-cli|https|rgit-{tag}-windows-amd64.exe|" ]
+assert "table-rgit-row" [ "$rgit_row" = "Rethunk-Tech/rethunk-git-cli|sha256sums|rgit-v{VERSION}-windows-amd64.exe|" ]
 gate_row=$(table_body | awk -F'|' '$1=="gate"{print $2 "|" $3 "|" $4}')
-assert "table-gate-row" [ "$gate_row" = "Rethunk-Tech/rethunk-gate-cli|https|gate-windows-amd64.exe" ]
+assert "table-gate-row" [ "$gate_row" = "Rethunk-Tech/rethunk-gate-cli|sha256sums|gate-windows-amd64.exe" ]
 fd_row=$(table_body | awk -F'|' '$1=="format-dispatch"{print $2 "|" $3 "|" $4 "|" $5}')
-assert "table-format-dispatch-row" [ "$fd_row" = "Rethunk-Tech/claude-format-hooks|https|format-dispatch-windows-amd64.exe|format-dispatch-windows-arm64.exe" ]
+assert "table-format-dispatch-row" [ "$fd_row" = "Rethunk-Tech/claude-format-hooks|per-asset|format-dispatch-windows-amd64.exe|" ]
 
 assert "skip-names-rgit" grep -q 'rgit: no matching release' "$work/case5.err"
 assert "skip-names-gate" grep -q 'gate: no matching release' "$work/case5.err"
@@ -398,6 +398,31 @@ if grep -q 'already current' <<<"$(grep rgit "$work/upd2.err" || true)"; then
   assert "update-rgit-not-already" false
 else
   assert "update-rgit-not-already" true
+fi
+
+# format-dispatch pins from <asset>.sha256 even when a SHA256SUMS decoy is present.
+fd_amd=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+fd_decoy=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+install -d "$work/sums/claude-format-hooks"
+printf '%s  format-dispatch-windows-amd64.exe\n' "$fd_decoy" >"$work/sums/claude-format-hooks/SHA256SUMS"
+printf '%s\n' "$fd_amd" >"$work/sums/claude-format-hooks/format-dispatch-windows-amd64.exe.sha256"
+case_fd=$work/case-fd
+setup_tree "$case_fd"
+export FIXTURE_DIR="$work/sums"
+out=$(run_update "$case_fd" 2>"$work/fd.err")
+assert "create-prints-format-dispatch" grep -qx 'format-dispatch 9.9.9' <<<"$out"
+assert "create-fd-hash-from-sidecar" [ "$(jq -r '.architecture["64bit"].hash' "$case_fd/bucket/format-dispatch.json")" = "$fd_amd" ]
+assert "create-fd-url" [ "$(jq -r '.architecture["64bit"].url' "$case_fd/bucket/format-dispatch.json")" = "https://github.com/Rethunk-Tech/claude-format-hooks/releases/download/v9.9.9/format-dispatch-windows-amd64.exe#/format-dispatch.exe" ]
+assert "create-fd-bin" [ "$(jq -r .bin "$case_fd/bucket/format-dispatch.json")" = "format-dispatch.exe" ]
+if jq -e '.architecture | has("arm64")' "$case_fd/bucket/format-dispatch.json" >/dev/null; then
+  assert "create-fd-no-arm64" false
+else
+  assert "create-fd-no-arm64" true
+fi
+if grep -q '.sha256 file' "$case_fd/bucket/format-dispatch.json"; then
+  assert "create-fd-sidecar-notes" true
+else
+  assert "create-fd-sidecar-notes" false
 fi
 
 exit "$fail"
