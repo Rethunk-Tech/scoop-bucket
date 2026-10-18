@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: Rethunk-Tech/gh-actions/setup-go@bc5fa5b1004205c9c9399fc941d79d5ada53c59b # v1.16
+        with:
+          go-version: "stable"
+      - name: Install gate tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck gnupg
+          go install github.com/Rethunk-Tech/rethunk-gate-cli/cmd/gate@latest
+          go install github.com/rhysd/actionlint/cmd/actionlint@latest
+      - name: gate
+        run: gate
