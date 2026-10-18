@@ -22,12 +22,6 @@ install -d "$work/bin" "$work/keys" "$work/sums"
 PATH="$work/bin:$PATH"
 export PATH
 
-cat >"$work/bin/gh" <<'EOF'
-#!/usr/bin/env bash
-echo "v9.9.9"
-EOF
-chmod +x "$work/bin/gh"
-
 cat >"$work/bin/curl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -43,6 +37,13 @@ for a in "$@"; do
 done
 if [ -n "${CURL_ARGS_FILE-}" ]; then
   printf '%s\n' "$@" >"$CURL_ARGS_FILE"
+fi
+if [[ $url == */releases/latest ]]; then
+  if [ "${CURL_FAIL-}" = "latest" ]; then
+    exit 22
+  fi
+  printf '%s\n' "${CURL_REDIRECT_URL:-https://github.com/Rethunk-Tech/mortar/releases/tag/v9.9.9}"
+  exit 0
 fi
 file=${url##*/}
 src="${FIXTURE_DIR}/${file}"
@@ -82,7 +83,7 @@ setup_tree() {
 
 run_update() {
   local dest=$1
-  env -u GNUPGHOME PATH="$PATH" FIXTURE_DIR="$FIXTURE_DIR" CURL_FAIL="${CURL_FAIL:-}" CURL_ARGS_FILE="${CURL_ARGS_FILE:-}" "$dest/scripts/update.sh"
+  env -u GNUPGHOME PATH="$PATH" FIXTURE_DIR="$FIXTURE_DIR" CURL_FAIL="${CURL_FAIL:-}" CURL_ARGS_FILE="${CURL_ARGS_FILE:-}" CURL_REDIRECT_URL="${CURL_REDIRECT_URL:-}" "$dest/scripts/update.sh"
 }
 
 before=$(jq -c '{version, architecture}' "$repo/bucket/mortar.json")
@@ -145,6 +146,8 @@ else
   assert "empty-hash-exits" true
 fi
 assert "empty-hash-names-asset" grep -q mortar-windows-amd64.exe "$work/case4.err"
+after=$(jq -c '{version, architecture}' "$case4/bucket/mortar.json")
+assert "empty-hash-leaves-manifest" [ "$after" = "$before" ]
 
 # A valid signature rewrites version and hashes.
 case5=$work/case-ok
@@ -177,32 +180,24 @@ assert "missing-arm-names-asset" grep -q mortar-windows-arm64.exe "$work/case6.e
 after=$(jq -c '{version, architecture}' "$case6/bucket/mortar.json")
 assert "missing-arm-leaves-manifest" [ "$after" = "$before" ]
 
-# gh release view failing must name GitHub, not fall through unsigned.
-case7=$work/case-gh-fail
+# A failed latest-tag lookup must name GitHub, not fall through unsigned.
+case7=$work/case-latest-fail
 setup_tree "$case7"
-cat >"$work/bin/gh" <<'EOF'
-#!/usr/bin/env bash
-exit 1
-EOF
-chmod +x "$work/bin/gh"
-export FIXTURE_DIR="$work/sums"
+export FIXTURE_DIR="$work/sums" CURL_FAIL=latest
 if run_update "$case7" >/dev/null 2>"$work/case7.err"; then
-  assert "gh-fail-exits" false
+  assert "latest-fail-exits" false
 else
-  assert "gh-fail-exits" true
+  assert "latest-fail-exits" true
 fi
-assert "gh-fail-names-github" grep -q GitHub "$work/case7.err"
+assert "latest-fail-names-github" grep -q GitHub "$work/case7.err"
 after=$(jq -c '{version, architecture}' "$case7/bucket/mortar.json")
-assert "gh-fail-leaves-manifest" [ "$after" = "$before" ]
+assert "latest-fail-leaves-manifest" [ "$after" = "$before" ]
+unset CURL_FAIL
 
 # An empty tag must not rewrite URLs to .../download/.
 case8=$work/case-empty-tag
 setup_tree "$case8"
-cat >"$work/bin/gh" <<'EOF'
-#!/usr/bin/env bash
-printf '\n'
-EOF
-chmod +x "$work/bin/gh"
+export CURL_REDIRECT_URL="https://github.com/Rethunk-Tech/mortar/releases/latest"
 if run_update "$case8" >/dev/null 2>"$work/case8.err"; then
   assert "empty-tag-exits" false
 else
@@ -211,16 +206,12 @@ fi
 assert "empty-tag-names-tag" grep -q tag "$work/case8.err"
 after=$(jq -c '{version, architecture}' "$case8/bucket/mortar.json")
 assert "empty-tag-leaves-manifest" [ "$after" = "$before" ]
+unset CURL_REDIRECT_URL
 
 # A missing packages keyring must name the file before gpg import.
 case9=$work/case-no-keyring
 setup_tree "$case9"
 rm -f "$case9/scripts/mortar-archive-keyring.asc"
-cat >"$work/bin/gh" <<'EOF'
-#!/usr/bin/env bash
-echo "v9.9.9"
-EOF
-chmod +x "$work/bin/gh"
 export FIXTURE_DIR="$work/sums"
 if run_update "$case9" >/dev/null 2>"$work/case9.err"; then
   assert "missing-keyring-exits" false
@@ -250,7 +241,12 @@ assert "short-hash-leaves-manifest" [ "$after" = "$before" ]
 # Already current must leave the manifest and say so on stderr.
 case10=$work/case-current
 setup_tree "$case10"
-jq --arg v 9.9.9 '.version = $v' "$case10/bucket/mortar.json" >"$work/current.json"
+jq --arg v 9.9.9 --arg amd "$amd" --arg arm "$arm" --arg base "https://github.com/Rethunk-Tech/mortar/releases/download/v9.9.9" '
+  .version = $v
+  | .architecture["64bit"].url = "\($base)/mortar-windows-amd64.exe#/mortar.exe"
+  | .architecture["64bit"].hash = $amd
+  | .architecture.arm64.url = "\($base)/mortar-windows-arm64.exe#/mortar.exe"
+  | .architecture.arm64.hash = $arm' "$case10/bucket/mortar.json" >"$work/current.json"
 mv "$work/current.json" "$case10/bucket/mortar.json"
 before10=$(jq -c '{version, architecture}' "$case10/bucket/mortar.json")
 export FIXTURE_DIR="$work/sums"
@@ -260,14 +256,31 @@ assert "current-names-already" grep -q 'already current' "$work/case10.err"
 after=$(jq -c '{version, architecture}' "$case10/bucket/mortar.json")
 assert "current-leaves-manifest" [ "$after" = "$before10" ]
 
+# Matching version with a wrong hash must verify SUMS and rewrite the pin.
+case13=$work/case-wrong-hash
+setup_tree "$case13"
+jq --arg v 9.9.9 --arg amd "$amd" --arg arm "$arm" --arg base "https://github.com/Rethunk-Tech/mortar/releases/download/v9.9.9" '
+  .version = $v
+  | .architecture["64bit"].url = "\($base)/mortar-windows-amd64.exe#/mortar.exe"
+  | .architecture["64bit"].hash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+  | .architecture.arm64.url = "\($base)/mortar-windows-arm64.exe#/mortar.exe"
+  | .architecture.arm64.hash = $arm' "$case13/bucket/mortar.json" >"$work/wrong-hash.json"
+mv "$work/wrong-hash.json" "$case13/bucket/mortar.json"
+export FIXTURE_DIR="$work/sums"
+out=$(run_update "$case13" 2>"$work/case13.err")
+assert "wrong-hash-prints-version" [ "$out" = "mortar 9.9.9" ]
+if grep -q 'already current' "$work/case13.err"; then
+  assert "wrong-hash-not-already" false
+else
+  assert "wrong-hash-not-already" true
+fi
+assert "wrong-hash-repairs-amd" [ "$(jq -r '.architecture["64bit"].hash' "$case13/bucket/mortar.json")" = "$amd" ]
+assert "wrong-hash-keeps-version" [ "$(jq -r .version "$case13/bucket/mortar.json")" = "9.9.9" ]
+
 # A slash in the tag must not be interpolated into the download URL.
 case12=$work/case-slash-tag
 setup_tree "$case12"
-cat >"$work/bin/gh" <<'EOF'
-#!/usr/bin/env bash
-echo 'v9.9.9/../../evil'
-EOF
-chmod +x "$work/bin/gh"
+export CURL_REDIRECT_URL="https://github.com/Rethunk-Tech/mortar/releases/tag/v9.9.9/../../evil"
 export FIXTURE_DIR="$work/sums"
 if run_update "$case12" >/dev/null 2>"$work/case12.err"; then
   assert "slash-tag-exits" false
@@ -277,6 +290,7 @@ fi
 assert "slash-tag-names-tag" grep -q 'v-prefixed version' "$work/case12.err"
 after=$(jq -c '{version, architecture}' "$case12/bucket/mortar.json")
 assert "slash-tag-leaves-manifest" [ "$after" = "$before" ]
+unset CURL_REDIRECT_URL
 
 # Docs must not claim an updater-off marker this manifest does not set.
 doc_absent() {

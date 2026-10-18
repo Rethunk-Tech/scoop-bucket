@@ -28,13 +28,13 @@ scoop bucket rm mortar
 
 ## Maintainer bump
 
-`scripts/update.sh` takes no flags and prints no `--help`. From the repo root, with `gh`, `curl`, `gpg`, `jq`, and `timeout` on `PATH`:
+`scripts/update.sh` takes no flags and prints no `--help`. From the repo root, with `curl`, `gpg`, `jq`, and `timeout` on `PATH`:
 
 ```bash
 scripts/update.sh
 ```
 
-`gh release view` reads the latest [Rethunk-Tech/mortar](https://github.com/Rethunk-Tech/mortar) tag (30s timeout). `gh` uses `GH_TOKEN` or `GITHUB_TOKEN` when GitHub requires auth; the Update workflow sets `GH_TOKEN` to `github.token`. On success stdout is `mortar <version>`. If `bucket/mortar.json` already has that version, the script exits 0, writes `mortar <version> already current` to stderr, and does not fetch `SHA256SUMS`.
+The latest [Rethunk-Tech/mortar](https://github.com/Rethunk-Tech/mortar) tag is the public `/releases/latest` redirect (30s timeout). On success stdout is `mortar <version>`. If version, URLs, and hashes already match the signed `SHA256SUMS`, the script exits 0, writes `mortar <version> already current` to stderr, and leaves the manifest bytes unchanged.
 
 A missing, unsigned, or unreachable `SHA256SUMS` / `SHA256SUMS.asc` is fatal. Downloads use HTTPS only, connect timeout 15s, max time 60s.
 

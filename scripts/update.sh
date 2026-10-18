@@ -5,8 +5,16 @@ set -euo pipefail
 scripts=$(cd "$(dirname "$0")" && pwd)
 cd "$scripts/.."
 FPR=D8B1C4C205C5FB3633CB8B9900B75959B637DCB5
-if ! tag=$(timeout 30 gh release view --repo Rethunk-Tech/mortar --json tagName --jq .tagName); then
+# GitHub's /releases/latest redirect is public. The Actions token is this bucket's
+# repo-scoped github.token and must not be sent to Rethunk-Tech/mortar.
+# HEAD stays unfollowed: -L would land on the tag page and empty %{redirect_url}.
+if ! latest=$(timeout 30 curl --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 -fsSI -o /dev/null -w '%{redirect_url}' https://github.com/Rethunk-Tech/mortar/releases/latest); then
   echo "error: could not read the latest Mortar release from GitHub" >&2
+  exit 1
+fi
+tag=${latest##*/}
+if [ -z "$tag" ] || [ "$tag" = "latest" ]; then
+  echo "error: latest Mortar release has an empty tag" >&2
   exit 1
 fi
 [[ $tag =~ ^v[0-9][0-9A-Za-z._-]*$ ]] || {
@@ -18,10 +26,6 @@ version=${tag#v}
   echo "error: latest Mortar release has an empty tag" >&2
   exit 1
 }
-if [ "$(jq -r .version bucket/mortar.json)" = "$version" ]; then
-  echo "mortar $version already current" >&2
-  exit 0
-fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 base="https://github.com/Rethunk-Tech/mortar/releases/download/$tag"
@@ -74,5 +78,9 @@ jq --arg v "$version" --arg base "$base" --arg amd "$amd" --arg arm "$arm" '
   | .architecture["64bit"].hash = $amd
   | .architecture.arm64.url = "\($base)/mortar-windows-arm64.exe#/mortar.exe"
   | .architecture.arm64.hash = $arm' bucket/mortar.json >"$tmp/mortar.json"
+if cmp -s bucket/mortar.json "$tmp/mortar.json"; then
+  echo "mortar $version already current" >&2
+  exit 0
+fi
 mv "$tmp/mortar.json" bucket/mortar.json
 echo "mortar $version"
