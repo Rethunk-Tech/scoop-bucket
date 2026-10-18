@@ -278,4 +278,34 @@ assert "slash-tag-names-tag" grep -q 'v-prefixed version' "$work/case12.err"
 after=$(jq -c '{version, architecture}' "$case12/bucket/mortar.json")
 assert "slash-tag-leaves-manifest" [ "$after" = "$before" ]
 
+# Docs must not claim an updater-off marker this manifest does not set.
+doc_absent() {
+  local name=$1 file=$2
+  if grep -qi 'updater stays off' "$file"; then
+    assert "$name" false
+  else
+    assert "$name" true
+  fi
+}
+if jq -e 'has("env_set") or has("pre_install") or has("post_install")' "$repo/bucket/mortar.json" >/dev/null; then
+  assert "updater-hook-present" true
+else
+  doc_absent "notes-no-false-updater" "$repo/bucket/mortar.json"
+  doc_absent "readme-no-false-updater" "$repo/README.md"
+  doc_absent "humans-no-false-updater" "$repo/HUMANS.md"
+fi
+code_fpr=$(awk -F= '/^FPR=/{print $2}' "$repo/scripts/update.sh")
+assert "readme-fpr-matches-update" grep -q "$code_fpr" <(tr -d ' \n' <"$repo/README.md")
+assert "humans-names-update-script" grep -q 'scripts/update.sh' "$repo/HUMANS.md"
+if grep -Eq 'update\.sh[[:space:]]+--' "$repo/HUMANS.md"; then
+  assert "humans-no-update-sh-flags" false
+else
+  assert "humans-no-update-sh-flags" true
+fi
+if jq -e 'has("autoupdate")' "$repo/bucket/mortar.json" >/dev/null; then
+  assert "manifest-has-no-autoupdate" false
+else
+  assert "manifest-has-no-autoupdate" true
+fi
+
 exit "$fail"
