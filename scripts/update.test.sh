@@ -41,6 +41,9 @@ for a in "$@"; do
   prev=$a
   url=$a
 done
+if [ -n "${CURL_ARGS_FILE-}" ]; then
+  printf '%s\n' "$@" >"$CURL_ARGS_FILE"
+fi
 file=${url##*/}
 src="${FIXTURE_DIR}/${file}"
 if [ "${CURL_FAIL-}" = "$file" ]; then
@@ -79,7 +82,7 @@ setup_tree() {
 
 run_update() {
   local dest=$1
-  env -u GNUPGHOME PATH="$PATH" FIXTURE_DIR="$FIXTURE_DIR" CURL_FAIL="${CURL_FAIL:-}" "$dest/scripts/update.sh"
+  env -u GNUPGHOME PATH="$PATH" FIXTURE_DIR="$FIXTURE_DIR" CURL_FAIL="${CURL_FAIL:-}" CURL_ARGS_FILE="${CURL_ARGS_FILE:-}" "$dest/scripts/update.sh"
 }
 
 before=$(jq -c '{version, architecture}' "$repo/bucket/mortar.json")
@@ -146,13 +149,17 @@ assert "empty-hash-names-asset" grep -q mortar-windows-amd64.exe "$work/case4.er
 # A valid signature rewrites version and hashes.
 case5=$work/case-ok
 setup_tree "$case5"
-export FIXTURE_DIR="$work/sums"
+export FIXTURE_DIR="$work/sums" CURL_ARGS_FILE="$work/curl.args"
 out=$(run_update "$case5")
 assert "valid-prints-version" [ "$out" = "mortar 9.9.9" ]
 assert "valid-version" [ "$(jq -r .version "$case5/bucket/mortar.json")" = "9.9.9" ]
 assert "valid-amd" [ "$(jq -r '.architecture["64bit"].hash' "$case5/bucket/mortar.json")" = "$amd" ]
 assert "valid-arm" [ "$(jq -r .architecture.arm64.hash "$case5/bucket/mortar.json")" = "$arm" ]
 assert "valid-url" [ "$(jq -r '.architecture["64bit"].url' "$case5/bucket/mortar.json")" = "https://github.com/Rethunk-Tech/mortar/releases/download/v9.9.9/mortar-windows-amd64.exe#/mortar.exe" ]
+assert "curl-uses-max-time" grep -qx -- '--max-time' "$work/curl.args"
+assert "curl-uses-connect-timeout" grep -qx -- '--connect-timeout' "$work/curl.args"
+assert "curl-https-only" grep -qx -- '--proto' "$work/curl.args"
+unset CURL_ARGS_FILE
 
 # SUMS that list amd64 but omit arm64 must name the missing asset.
 case6=$work/case-no-arm
@@ -252,5 +259,23 @@ assert "current-stdout-empty" [ ! -s "$work/case10.out" ]
 assert "current-names-already" grep -q 'already current' "$work/case10.err"
 after=$(jq -c '{version, architecture}' "$case10/bucket/mortar.json")
 assert "current-leaves-manifest" [ "$after" = "$before10" ]
+
+# A slash in the tag must not be interpolated into the download URL.
+case12=$work/case-slash-tag
+setup_tree "$case12"
+cat >"$work/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+echo 'v9.9.9/../../evil'
+EOF
+chmod +x "$work/bin/gh"
+export FIXTURE_DIR="$work/sums"
+if run_update "$case12" >/dev/null 2>"$work/case12.err"; then
+  assert "slash-tag-exits" false
+else
+  assert "slash-tag-exits" true
+fi
+assert "slash-tag-names-tag" grep -q 'v-prefixed version' "$work/case12.err"
+after=$(jq -c '{version, architecture}' "$case12/bucket/mortar.json")
+assert "slash-tag-leaves-manifest" [ "$after" = "$before" ]
 
 exit "$fail"

@@ -5,10 +5,14 @@ set -euo pipefail
 scripts=$(cd "$(dirname "$0")" && pwd)
 cd "$scripts/.."
 FPR=D8B1C4C205C5FB3633CB8B9900B75959B637DCB5
-if ! tag=$(gh release view --repo Rethunk-Tech/mortar --json tagName --jq .tagName); then
+if ! tag=$(timeout 30 gh release view --repo Rethunk-Tech/mortar --json tagName --jq .tagName); then
   echo "error: could not read the latest Mortar release from GitHub" >&2
   exit 1
 fi
+[[ $tag =~ ^v[0-9][0-9A-Za-z._-]*$ ]] || {
+  echo "error: latest Mortar release tag is not a v-prefixed version" >&2
+  exit 1
+}
 version=${tag#v}
 [ -n "$version" ] || {
   echo "error: latest Mortar release has an empty tag" >&2
@@ -25,11 +29,14 @@ base="https://github.com/Rethunk-Tech/mortar/releases/download/$tag"
   echo "error: missing mortar-archive-keyring.asc" >&2
   exit 1
 }
-if ! curl -fsSLo "$tmp/SHA256SUMS" "$base/SHA256SUMS"; then
+curl_get() {
+  curl --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 -fsSLo "$1" "$2"
+}
+if ! curl_get "$tmp/SHA256SUMS" "$base/SHA256SUMS"; then
   echo "error: SHA256SUMS unavailable at $base/SHA256SUMS" >&2
   exit 1
 fi
-if ! curl -fsSLo "$tmp/SHA256SUMS.asc" "$base/SHA256SUMS.asc"; then
+if ! curl_get "$tmp/SHA256SUMS.asc" "$base/SHA256SUMS.asc"; then
   echo "error: SHA256SUMS.asc unavailable at $base/SHA256SUMS.asc" >&2
   exit 1
 fi
