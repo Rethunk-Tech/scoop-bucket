@@ -224,6 +224,22 @@ assert "missing-keyring-names-file" grep -q 'error: missing mortar-archive-keyri
 after=$(jq -c '{version, architecture}' "$case9/bucket/mortar.json")
 assert "missing-keyring-leaves-manifest" [ "$after" = "$before" ]
 
+# A token that is not 64 hex chars must not become the pinned hash.
+case11=$work/case-short-hash
+setup_tree "$case11"
+export FIXTURE_DIR="$work/sums-short"
+install -d "$FIXTURE_DIR"
+printf 'deadbeef  mortar-windows-amd64.exe\n%s  mortar-windows-arm64.exe\n' "$arm" >"$FIXTURE_DIR/SHA256SUMS"
+gpg --batch --yes --local-user "$fpr" --detach-sign --armor -o "$FIXTURE_DIR/SHA256SUMS.asc" "$FIXTURE_DIR/SHA256SUMS"
+if run_update "$case11" >/dev/null 2>"$work/case11.err"; then
+  assert "short-hash-exits" false
+else
+  assert "short-hash-exits" true
+fi
+assert "short-hash-names-amd" grep -q mortar-windows-amd64.exe "$work/case11.err"
+after=$(jq -c '{version, architecture}' "$case11/bucket/mortar.json")
+assert "short-hash-leaves-manifest" [ "$after" = "$before" ]
+
 # Already current must leave the manifest and say so on stderr.
 case10=$work/case-current
 setup_tree "$case10"

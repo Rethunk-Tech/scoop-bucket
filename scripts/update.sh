@@ -52,6 +52,15 @@ arm=$(hash mortar-windows-arm64.exe)
   echo "error: SHA256SUMS has no hash for mortar-windows-arm64.exe" >&2
   exit 1
 }
+sha256() { [[ $1 =~ ^[0-9a-fA-F]{64}$ ]]; }
+sha256 "$amd" || {
+  echo "error: SHA256SUMS hash for mortar-windows-amd64.exe is not 64 hex characters" >&2
+  exit 1
+}
+sha256 "$arm" || {
+  echo "error: SHA256SUMS hash for mortar-windows-arm64.exe is not 64 hex characters" >&2
+  exit 1
+}
 jq --arg v "$version" --arg base "$base" --arg amd "$amd" --arg arm "$arm" '
   .version = $v
   | .architecture["64bit"].url = "\($base)/mortar-windows-amd64.exe#/mortar.exe"
