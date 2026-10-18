@@ -6,14 +6,20 @@ Install: [README.md](README.md).
 
 ```powershell
 scoop update mortar
+scoop update rgit
+scoop update gate
+scoop update format-dispatch
 ```
 
-Pins move only after this repo commits a new `bucket/mortar.json`. Scoop `checkver` can report a newer GitHub tag while the pins still match the last committed release.
+Pins move only after this repo commits a new `bucket/*.json`. Scoop `checkver` can report a newer GitHub tag while the pins still match the last committed release.
 
 ## Uninstall
 
 ```powershell
 scoop uninstall mortar
+scoop uninstall rgit
+scoop uninstall gate
+scoop uninstall format-dispatch
 scoop bucket rm mortar
 ```
 
@@ -25,9 +31,9 @@ scoop bucket rm mortar
 scripts/update.sh
 ```
 
-Latest tag is the public `/releases/latest` redirect (30s). Success stdout: `mortar <version>`. Matching signed `SHA256SUMS` exits 0, writes `mortar <version> already current` to stderr, and leaves the manifest unchanged.
+Each table entry's latest tag is the public `/releases/latest` redirect (30s). Success stdout: `<name> <version>` per rewritten manifest. Matching `SHA256SUMS` (Mortar: signed) writes `<name> <version> already current` to stderr and leaves that manifest unchanged. A tool whose latest release lacks `SHA256SUMS` or the expected Windows assets prints `<name>: no matching release` on stderr and writes no file.
 
-A missing, unsigned, or unreachable `SHA256SUMS` / `SHA256SUMS.asc` is fatal. HTTPS only, connect 15s, max 60s.
+Mortar: a missing, unsigned, or unreachable `SHA256SUMS` / `SHA256SUMS.asc` is fatal. Other tools: `SHA256SUMS` over HTTPS, hashes checked against that file (not GPG). HTTPS only, connect 15s, max 60s.
 
 ## Verify
 
