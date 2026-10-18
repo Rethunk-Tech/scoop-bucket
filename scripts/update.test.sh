@@ -154,4 +154,74 @@ assert "valid-amd" [ "$(jq -r '.architecture["64bit"].hash' "$case5/bucket/morta
 assert "valid-arm" [ "$(jq -r .architecture.arm64.hash "$case5/bucket/mortar.json")" = "$arm" ]
 assert "valid-url" [ "$(jq -r '.architecture["64bit"].url' "$case5/bucket/mortar.json")" = "https://github.com/Rethunk-Tech/mortar/releases/download/v9.9.9/mortar-windows-amd64.exe#/mortar.exe" ]
 
+# SUMS that list amd64 but omit arm64 must name the missing asset.
+case6=$work/case-no-arm
+setup_tree "$case6"
+export FIXTURE_DIR="$work/sums-no-arm"
+install -d "$FIXTURE_DIR"
+printf '%s  mortar-windows-amd64.exe\n' "$amd" >"$FIXTURE_DIR/SHA256SUMS"
+gpg --batch --yes --local-user "$fpr" --detach-sign --armor -o "$FIXTURE_DIR/SHA256SUMS.asc" "$FIXTURE_DIR/SHA256SUMS"
+if run_update "$case6" >/dev/null 2>"$work/case6.err"; then
+  assert "missing-arm-exits" false
+else
+  assert "missing-arm-exits" true
+fi
+assert "missing-arm-names-asset" grep -q mortar-windows-arm64.exe "$work/case6.err"
+after=$(jq -c '{version, architecture}' "$case6/bucket/mortar.json")
+assert "missing-arm-leaves-manifest" [ "$after" = "$before" ]
+
+# gh release view failing must name GitHub, not fall through unsigned.
+case7=$work/case-gh-fail
+setup_tree "$case7"
+cat >"$work/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$work/bin/gh"
+export FIXTURE_DIR="$work/sums"
+if run_update "$case7" >/dev/null 2>"$work/case7.err"; then
+  assert "gh-fail-exits" false
+else
+  assert "gh-fail-exits" true
+fi
+assert "gh-fail-names-github" grep -q GitHub "$work/case7.err"
+after=$(jq -c '{version, architecture}' "$case7/bucket/mortar.json")
+assert "gh-fail-leaves-manifest" [ "$after" = "$before" ]
+
+# An empty tag must not rewrite URLs to .../download/.
+case8=$work/case-empty-tag
+setup_tree "$case8"
+cat >"$work/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '\n'
+EOF
+chmod +x "$work/bin/gh"
+if run_update "$case8" >/dev/null 2>"$work/case8.err"; then
+  assert "empty-tag-exits" false
+else
+  assert "empty-tag-exits" true
+fi
+assert "empty-tag-names-tag" grep -q tag "$work/case8.err"
+after=$(jq -c '{version, architecture}' "$case8/bucket/mortar.json")
+assert "empty-tag-leaves-manifest" [ "$after" = "$before" ]
+
+# A missing packages keyring must name the file before gpg import.
+case9=$work/case-no-keyring
+setup_tree "$case9"
+rm -f "$case9/scripts/mortar-archive-keyring.asc"
+cat >"$work/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+echo "v9.9.9"
+EOF
+chmod +x "$work/bin/gh"
+export FIXTURE_DIR="$work/sums"
+if run_update "$case9" >/dev/null 2>"$work/case9.err"; then
+  assert "missing-keyring-exits" false
+else
+  assert "missing-keyring-exits" true
+fi
+assert "missing-keyring-names-file" grep -q 'error: missing mortar-archive-keyring.asc' "$work/case9.err"
+after=$(jq -c '{version, architecture}' "$case9/bucket/mortar.json")
+assert "missing-keyring-leaves-manifest" [ "$after" = "$before" ]
+
 exit "$fail"

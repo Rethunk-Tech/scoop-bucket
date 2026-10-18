@@ -5,12 +5,23 @@ set -euo pipefail
 scripts=$(cd "$(dirname "$0")" && pwd)
 cd "$scripts/.."
 FPR=D8B1C4C205C5FB3633CB8B9900B75959B637DCB5
-tag=$(gh release view --repo Rethunk-Tech/mortar --json tagName --jq .tagName)
+if ! tag=$(gh release view --repo Rethunk-Tech/mortar --json tagName --jq .tagName); then
+  echo "error: could not read the latest Mortar release from GitHub" >&2
+  exit 1
+fi
 version=${tag#v}
+[ -n "$version" ] || {
+  echo "error: latest Mortar release has an empty tag" >&2
+  exit 1
+}
 [ "$(jq -r .version bucket/mortar.json)" != "$version" ] || exit 0
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 base="https://github.com/Rethunk-Tech/mortar/releases/download/$tag"
+[ -f "$scripts/mortar-archive-keyring.asc" ] || {
+  echo "error: missing mortar-archive-keyring.asc" >&2
+  exit 1
+}
 if ! curl -fsSLo "$tmp/SHA256SUMS" "$base/SHA256SUMS"; then
   echo "error: SHA256SUMS unavailable at $base/SHA256SUMS" >&2
   exit 1
