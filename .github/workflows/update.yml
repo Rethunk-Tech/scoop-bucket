@@ -20,8 +20,9 @@ jobs:
         run: scripts/update.sh
       - name: Commit
         run: |
-          git diff --quiet && exit 0
+          git add bucket/mortar.json
+          git diff --cached --quiet && exit 0
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "mortar: $(jq -r .version bucket/mortar.json)"
+          git commit -m "mortar: $(jq -r .version bucket/mortar.json)"
           git push
