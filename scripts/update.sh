@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Point bucket/mortar.json at Mortar's latest release. Hashes come from the release's SHA256SUMS, whose GPG signature is
-# checked against the Mortar packages key; a release without SHA256SUMS is hashed by downloading its files.
+# checked against the Mortar packages key. A missing, unsigned, or unreachable SHA256SUMS is fatal.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+scripts=$(cd "$(dirname "$0")" && pwd)
+cd "$scripts/.."
 FPR=D8B1C4C205C5FB3633CB8B9900B75959B637DCB5
 tag=$(gh release view --repo Rethunk-Tech/mortar --json tagName --jq .tagName)
 version=${tag#v}
@@ -10,19 +11,33 @@ version=${tag#v}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 base="https://github.com/Rethunk-Tech/mortar/releases/download/$tag"
-if curl -fsLo "$tmp/SHA256SUMS" "$base/SHA256SUMS"; then
-  curl -fsSLo "$tmp/SHA256SUMS.asc" "$base/SHA256SUMS.asc"
-  export GNUPGHOME="$tmp/gnupg"
-  install -d -m 700 "$GNUPGHOME"
-  curl -fsSL https://mortar.rethunk.tech/packages/mortar-archive-keyring.asc | gpg --batch --quiet --import
-  gpg --batch --status-fd 1 --verify "$tmp/SHA256SUMS.asc" "$tmp/SHA256SUMS" 2>/dev/null | grep -q "VALIDSIG $FPR"
-  hash() { awk -v f="$1" '$2 == f {print $1}' "$tmp/SHA256SUMS"; }
-else
-  hash() { curl -fsSL "$base/$1" | sha256sum | cut -d' ' -f1; }
+if ! curl -fsSLo "$tmp/SHA256SUMS" "$base/SHA256SUMS"; then
+  echo "error: SHA256SUMS unavailable at $base/SHA256SUMS" >&2
+  exit 1
 fi
+if ! curl -fsSLo "$tmp/SHA256SUMS.asc" "$base/SHA256SUMS.asc"; then
+  echo "error: SHA256SUMS.asc unavailable at $base/SHA256SUMS.asc" >&2
+  exit 1
+fi
+export GNUPGHOME="$tmp/gnupg"
+install -d -m 700 "$GNUPGHOME"
+gpg --batch --quiet --import "$scripts/mortar-archive-keyring.asc"
+gpg --batch --status-fd 1 --verify "$tmp/SHA256SUMS.asc" "$tmp/SHA256SUMS" >"$tmp/gpg.status" 2>/dev/null || true
+if ! grep -q "VALIDSIG $FPR" "$tmp/gpg.status"; then
+  echo "error: SHA256SUMS is not signed by $FPR" >&2
+  exit 1
+fi
+hash() { awk -v f="$1" '$2 == f {print $1}' "$tmp/SHA256SUMS"; }
 amd=$(hash mortar-windows-amd64.exe)
 arm=$(hash mortar-windows-arm64.exe)
-[ -n "$amd" ] && [ -n "$arm" ]
+[ -n "$amd" ] || {
+  echo "error: SHA256SUMS has no hash for mortar-windows-amd64.exe" >&2
+  exit 1
+}
+[ -n "$arm" ] || {
+  echo "error: SHA256SUMS has no hash for mortar-windows-arm64.exe" >&2
+  exit 1
+}
 jq --arg v "$version" --arg base "$base" --arg amd "$amd" --arg arm "$arm" '
   .version = $v
   | .architecture["64bit"].url = "\($base)/mortar-windows-amd64.exe#/mortar.exe"
