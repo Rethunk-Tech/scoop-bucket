@@ -18,13 +18,16 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Bump to the latest Mortar release
+      - name: Bump manifests to the latest releases
         run: scripts/update.sh
       - name: Commit
         run: |
-          git add bucket/mortar.json
+          git add -- bucket/*.json
           git diff --cached --quiet && exit 0
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "mortar: $(jq -r .version bucket/mortar.json)"
+          msg=$(git diff --cached --name-only | sed 's|^bucket/||;s|\.json$||' | while read -r n; do
+            printf '%s: %s\n' "$n" "$(jq -r .version "bucket/$n.json")"
+          done | paste -sd'; ' -)
+          git commit -m "$msg"
           git push
