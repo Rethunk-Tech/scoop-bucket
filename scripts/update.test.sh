@@ -224,4 +224,17 @@ assert "missing-keyring-names-file" grep -q 'error: missing mortar-archive-keyri
 after=$(jq -c '{version, architecture}' "$case9/bucket/mortar.json")
 assert "missing-keyring-leaves-manifest" [ "$after" = "$before" ]
 
+# Already current must leave the manifest and say so on stderr.
+case10=$work/case-current
+setup_tree "$case10"
+jq --arg v 9.9.9 '.version = $v' "$case10/bucket/mortar.json" >"$work/current.json"
+mv "$work/current.json" "$case10/bucket/mortar.json"
+before10=$(jq -c '{version, architecture}' "$case10/bucket/mortar.json")
+export FIXTURE_DIR="$work/sums"
+run_update "$case10" >"$work/case10.out" 2>"$work/case10.err"
+assert "current-stdout-empty" [ ! -s "$work/case10.out" ]
+assert "current-names-already" grep -q 'already current' "$work/case10.err"
+after=$(jq -c '{version, architecture}' "$case10/bucket/mortar.json")
+assert "current-leaves-manifest" [ "$after" = "$before10" ]
+
 exit "$fail"

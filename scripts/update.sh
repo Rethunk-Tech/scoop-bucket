@@ -14,7 +14,10 @@ version=${tag#v}
   echo "error: latest Mortar release has an empty tag" >&2
   exit 1
 }
-[ "$(jq -r .version bucket/mortar.json)" != "$version" ] || exit 0
+if [ "$(jq -r .version bucket/mortar.json)" = "$version" ]; then
+  echo "mortar $version already current" >&2
+  exit 0
+fi
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 base="https://github.com/Rethunk-Tech/mortar/releases/download/$tag"
