@@ -46,11 +46,20 @@ if [[ $url == */releases/latest ]]; then
   exit 0
 fi
 file=${url##*/}
-src="${FIXTURE_DIR}/${file}"
+gh_repo=""
+if [[ $url =~ github.com/[^/]+/([^/]+)/ ]]; then
+  gh_repo=${BASH_REMATCH[1]}
+fi
+src=""
+if [ -n "$gh_repo" ] && [ -f "${FIXTURE_DIR}/${gh_repo}/${file}" ]; then
+  src="${FIXTURE_DIR}/${gh_repo}/${file}"
+elif [ -f "${FIXTURE_DIR}/${file}" ]; then
+  src="${FIXTURE_DIR}/${file}"
+fi
 if [ "${CURL_FAIL-}" = "$file" ]; then
   exit 22
 fi
-if [ ! -f "$src" ]; then
+if [ -z "$src" ]; then
   exit 22
 fi
 if [ -n "$out" ]; then
@@ -153,7 +162,7 @@ assert "empty-hash-leaves-manifest" [ "$after" = "$before" ]
 case5=$work/case-ok
 setup_tree "$case5"
 export FIXTURE_DIR="$work/sums" CURL_ARGS_FILE="$work/curl.args"
-out=$(run_update "$case5")
+out=$(run_update "$case5" 2>"$work/case5.err")
 assert "valid-prints-version" [ "$out" = "mortar 9.9.9" ]
 assert "valid-version" [ "$(jq -r .version "$case5/bucket/mortar.json")" = "9.9.9" ]
 assert "valid-amd" [ "$(jq -r '.architecture["64bit"].hash' "$case5/bucket/mortar.json")" = "$amd" ]
@@ -320,6 +329,75 @@ if jq -e 'has("autoupdate")' "$repo/bucket/mortar.json" >/dev/null; then
   assert "manifest-has-no-autoupdate" false
 else
   assert "manifest-has-no-autoupdate" true
+fi
+
+table_body() {
+  awk '/^done <<'\''TABLE'\''$/{p=1;next} /^TABLE$/{exit} p' "$repo/scripts/update.sh"
+}
+
+n=$(table_body | grep -c . || true)
+assert "table-row-count" [ "$n" = 4 ]
+if table_body | grep -q '^heft|'; then
+  assert "table-omits-heft" false
+else
+  assert "table-omits-heft" true
+fi
+if table_body | grep -q '^engined|'; then
+  assert "table-omits-engined" false
+else
+  assert "table-omits-engined" true
+fi
+mortar_row=$(table_body | awk -F'|' '$1=="mortar"{print $2 "|" $3 "|" $4 "|" $5}')
+assert "table-mortar-row" [ "$mortar_row" = "Rethunk-Tech/mortar|gpg|mortar-windows-amd64.exe|mortar-windows-arm64.exe" ]
+rgit_row=$(table_body | awk -F'|' '$1=="rgit"{print $2 "|" $3 "|" $4 "|" $5}')
+assert "table-rgit-row" [ "$rgit_row" = "Rethunk-Tech/rethunk-git-cli|https|rgit-{tag}-windows-amd64.exe|" ]
+gate_row=$(table_body | awk -F'|' '$1=="gate"{print $2 "|" $3 "|" $4}')
+assert "table-gate-row" [ "$gate_row" = "Rethunk-Tech/rethunk-gate-cli|https|gate-windows-amd64.exe" ]
+fd_row=$(table_body | awk -F'|' '$1=="format-dispatch"{print $2 "|" $3 "|" $4 "|" $5}')
+assert "table-format-dispatch-row" [ "$fd_row" = "Rethunk-Tech/claude-format-hooks|https|format-dispatch-windows-amd64.exe|format-dispatch-windows-arm64.exe" ]
+
+assert "skip-names-rgit" grep -q 'rgit: no matching release' "$work/case5.err"
+assert "skip-names-gate" grep -q 'gate: no matching release' "$work/case5.err"
+assert "skip-names-format-dispatch" grep -q 'format-dispatch: no matching release' "$work/case5.err"
+assert "skip-no-rgit-json" [ ! -e "$case5/bucket/rgit.json" ]
+assert "skip-no-gate-json" [ ! -e "$case5/bucket/gate.json" ]
+assert "skip-no-format-dispatch-json" [ ! -e "$case5/bucket/format-dispatch.json" ]
+
+# Fixture release with rgit's SHA256SUMS creates the manifest, then a later run updates it.
+rgit_amd=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+install -d "$work/sums/rethunk-git-cli"
+printf '%s  rgit-v9.9.9-windows-amd64.exe\n' "$rgit_amd" >"$work/sums/rethunk-git-cli/SHA256SUMS"
+case_create=$work/case-create
+setup_tree "$case_create"
+export FIXTURE_DIR="$work/sums"
+out=$(run_update "$case_create" 2>"$work/create.err")
+assert "create-prints-rgit" grep -qx 'rgit 9.9.9' <<<"$out"
+assert "create-rgit-version" [ "$(jq -r .version "$case_create/bucket/rgit.json")" = "9.9.9" ]
+assert "create-rgit-hash" [ "$(jq -r '.architecture["64bit"].hash' "$case_create/bucket/rgit.json")" = "$rgit_amd" ]
+assert "create-rgit-url" [ "$(jq -r '.architecture["64bit"].url' "$case_create/bucket/rgit.json")" = "https://github.com/Rethunk-Tech/rethunk-git-cli/releases/download/v9.9.9/rgit-v9.9.9-windows-amd64.exe#/rgit.exe" ]
+assert "create-rgit-bin" [ "$(jq -r .bin "$case_create/bucket/rgit.json")" = "rgit.exe" ]
+if jq -e 'has("autoupdate")' "$case_create/bucket/rgit.json" >/dev/null; then
+  assert "create-rgit-no-autoupdate" false
+else
+  assert "create-rgit-no-autoupdate" true
+fi
+assert "create-still-skips-gate" [ ! -e "$case_create/bucket/gate.json" ]
+if grep -q 'HTTPS (not GPG-signed)' "$case_create/bucket/rgit.json"; then
+  assert "create-rgit-https-notes" true
+else
+  assert "create-rgit-https-notes" false
+fi
+
+jq '.architecture["64bit"].hash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"' \
+  "$case_create/bucket/rgit.json" >"$work/rgit-wrong.json"
+mv "$work/rgit-wrong.json" "$case_create/bucket/rgit.json"
+out=$(run_update "$case_create" 2>"$work/upd2.err")
+assert "update-prints-rgit" grep -qx 'rgit 9.9.9' <<<"$out"
+assert "update-repairs-rgit" [ "$(jq -r '.architecture["64bit"].hash' "$case_create/bucket/rgit.json")" = "$rgit_amd" ]
+if grep -q 'already current' <<<"$(grep rgit "$work/upd2.err" || true)"; then
+  assert "update-rgit-not-already" false
+else
+  assert "update-rgit-not-already" true
 fi
 
 exit "$fail"
