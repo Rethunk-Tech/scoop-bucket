@@ -401,11 +401,12 @@ else
 fi
 
 # format-dispatch pins from <asset>.sha256 even when a SHA256SUMS decoy is present.
+# Sidecar: first 64-hex token is a decoy; hash_of must bind $2 to the asset name.
 fd_amd=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 fd_decoy=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 install -d "$work/sums/claude-format-hooks"
 printf '%s  format-dispatch-windows-amd64.exe\n' "$fd_decoy" >"$work/sums/claude-format-hooks/SHA256SUMS"
-printf '%s\n' "$fd_amd" >"$work/sums/claude-format-hooks/format-dispatch-windows-amd64.exe.sha256"
+printf '%s  ignored.bin\n%s  format-dispatch-windows-amd64.exe\n' "$fd_decoy" "$fd_amd" >"$work/sums/claude-format-hooks/format-dispatch-windows-amd64.exe.sha256"
 case_fd=$work/case-fd
 setup_tree "$case_fd"
 export FIXTURE_DIR="$work/sums"
@@ -424,5 +425,22 @@ if grep -q '.sha256 file' "$case_fd/bucket/format-dispatch.json"; then
 else
   assert "create-fd-sidecar-notes" false
 fi
+
+# A revoked packages key still yields VALIDSIG; the updater must not pin.
+rev=$(ls "$work/keys/openpgp-revocs.d/"*.rev)
+sed 's/^:\(-----BEGIN PGP PUBLIC KEY BLOCK-----\)/\1/' "$rev" | gpg --batch --import
+gpg --batch --export --armor >"$work/throwaway-revoked.asc"
+case_rev=$work/case-revoked
+setup_tree "$case_rev"
+cp "$work/throwaway-revoked.asc" "$case_rev/scripts/mortar-archive-keyring.asc"
+export FIXTURE_DIR="$work/sums"
+if run_update "$case_rev" >/dev/null 2>"$work/case-rev.err"; then
+  assert "revoked-key-exits" false
+else
+  assert "revoked-key-exits" true
+fi
+assert "revoked-key-mentions-fpr" grep -q "$fpr" "$work/case-rev.err"
+after=$(jq -c '{version, architecture}' "$case_rev/bucket/mortar.json")
+assert "revoked-key-leaves-manifest" [ "$after" = "$before" ]
 
 exit "$fail"

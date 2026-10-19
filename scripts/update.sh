@@ -16,11 +16,6 @@ curl_get() {
 }
 sha256() { [[ $1 =~ ^[0-9a-fA-F]{64}$ ]]; }
 hash_of() { awk -v f="$1" '$2 == f {print $1}' "$2"; }
-hash_from_sha256_file() {
-  awk '{
-    for (i = 1; i <= NF; i++) if ($i ~ /^[0-9a-fA-F]{64}$/) { print $i; exit }
-  }' "$1"
-}
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
@@ -87,8 +82,15 @@ update_one() {
     export GNUPGHOME="$tmp/gnupg"
     install -d -m 700 "$GNUPGHOME"
     gpg --batch --quiet --import "$scripts/mortar-archive-keyring.asc"
-    gpg --batch --status-fd 1 --verify "$tmp/$name/SHA256SUMS.asc" "$sums" >"$tmp/$name/gpg.status" 2>/dev/null || true
-    if ! grep -q "VALIDSIG $FPR" "$tmp/$name/gpg.status"; then
+    if ! gpg --batch --status-fd 1 --verify "$tmp/$name/SHA256SUMS.asc" "$sums" >"$tmp/$name/gpg.status" 2>/dev/null; then
+      echo "error: SHA256SUMS is not signed by $FPR" >&2
+      exit 1
+    fi
+    if ! grep -q "^\[GNUPG:\] VALIDSIG $FPR" "$tmp/$name/gpg.status"; then
+      echo "error: SHA256SUMS is not signed by $FPR" >&2
+      exit 1
+    fi
+    if grep -qE '^\[GNUPG:\] (REVKEYSIG|EXPKEYSIG) ' "$tmp/$name/gpg.status"; then
       echo "error: SHA256SUMS is not signed by $FPR" >&2
       exit 1
     fi
@@ -104,7 +106,7 @@ update_one() {
       echo "$name: no matching release" >&2
       return 0
     fi
-    amd=$(hash_from_sha256_file "$tmp/$name/${amd_file}.sha256")
+    amd=$(hash_of "$amd_file" "$tmp/$name/${amd_file}.sha256")
     if [ -z "$amd" ]; then
       echo "$name: no matching release" >&2
       return 0
@@ -118,7 +120,7 @@ update_one() {
         echo "$name: no matching release" >&2
         return 0
       fi
-      arm=$(hash_from_sha256_file "$tmp/$name/${arm_file}.sha256")
+      arm=$(hash_of "$arm_file" "$tmp/$name/${arm_file}.sha256")
       if [ -z "$arm" ]; then
         echo "$name: no matching release" >&2
         return 0
