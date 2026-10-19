@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Rethunk-Tech/gh-actions/setup-go@043d9f8fb8b04b983fa8f7012b28241fd20f17b4 # v1.18
+      - uses: Rethunk-Tech/gh-actions/setup-go@ec8d4e393a463b83da0ed37940a10d08424e4920 # v1.19
         with:
           go-version: "1.27.2"
           cache-build: "false"
