@@ -1,13 +1,13 @@
 {
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Claude Code PostToolUse format/lint dispatcher hook",
   "homepage": "https://github.com/Rethunk-Tech/claude-format-hooks",
   "license": "MIT",
   "notes": "Run 'scoop update format-dispatch' after this bucket updates. Hashes are pinned from each asset's .sha256 file fetched over HTTPS (not GPG-signed).",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/Rethunk-Tech/claude-format-hooks/releases/download/v0.5.2/format-dispatch-windows-amd64.exe#/format-dispatch.exe",
-      "hash": "2c8622df9ed77c8136f3f904a79a70758716d5f48ba327c1122671fb9ff9b6dd"
+      "url": "https://github.com/Rethunk-Tech/claude-format-hooks/releases/download/v0.5.3/format-dispatch-windows-amd64.exe#/format-dispatch.exe",
+      "hash": "c95a8de6913efc411f27fd6350c5ad5a183f30aed39f71071aa85c3f1056e271"
     }
   },
   "bin": "format-dispatch.exe",
