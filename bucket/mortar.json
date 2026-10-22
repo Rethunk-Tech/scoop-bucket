@@ -1,17 +1,17 @@
 {
-  "version": "0.3.10",
+  "version": "0.3.11",
   "description": "Desktop mod manager for PC games: profiles, mod loader setup, Nexus Mods, GitHub and Thunderstore downloads, and shareable profiles",
   "homepage": "https://mortar.rethunk.tech/",
   "license": "AGPL-3.0-only",
   "notes": "Run 'scoop update mortar' after this bucket updates. Hashes are pinned from the release SHA256SUMS.",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/Rethunk-Tech/mortar/releases/download/v0.3.10/mortar-windows-amd64.exe#/mortar.exe",
-      "hash": "860f5da4e4ce8fda1709d3628ff9a9f6afcec2db8a9c3b2c4fbd116007bb0d5b"
+      "url": "https://github.com/Rethunk-Tech/mortar/releases/download/v0.3.11/mortar-windows-amd64.exe#/mortar.exe",
+      "hash": "63e426904cd5b20c70398b389cb1f3779f5021868a780f17c129182b19cfd32a"
     },
     "arm64": {
-      "url": "https://github.com/Rethunk-Tech/mortar/releases/download/v0.3.10/mortar-windows-arm64.exe#/mortar.exe",
-      "hash": "3f98c3b3baa04099f40fb25657ba2c1434b23c0e1849fa49905da42e50b1d788"
+      "url": "https://github.com/Rethunk-Tech/mortar/releases/download/v0.3.11/mortar-windows-arm64.exe#/mortar.exe",
+      "hash": "4f037a7534ef1e4bc996419965983948cc561a51992f8ec83448d182bba2022c"
     }
   },
   "bin": "mortar.exe",
