@@ -12,7 +12,7 @@ FPR=D8B1C4C205C5FB3633CB8B9900B75959B637DCB5
 # repo-scoped github.token and must not be sent to the upstream repos.
 # HEAD stays unfollowed: -L would land on the tag page and empty %{redirect_url}.
 curl_get() {
-  curl --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 -fsSLo "$1" "$2"
+  curl --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 --retry 18 --retry-delay 10 -fsSLo "$1" "$2"
 }
 sha256() { [[ $1 =~ ^[0-9a-fA-F]{64}$ ]]; }
 hash_of() { awk -v f="$1" '$2 == f {print $1}' "$2"; }
@@ -25,7 +25,7 @@ update_one() {
   local latest tag version base amd_file arm_file sums amd arm
   local dest out u64 uarm notes gh
 
-  if ! latest=$(timeout 30 curl --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 -fsSI -o /dev/null -w '%{redirect_url}' "https://github.com/$repo/releases/latest"); then
+  if ! latest=$(timeout 30 curl --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 --retry 18 --retry-delay 10 -fsSI -o /dev/null -w '%{redirect_url}' "https://github.com/$repo/releases/latest"); then
     if [ "$name" = mortar ]; then
       echo "error: could not read the latest Mortar release from GitHub" >&2
       exit 1

@@ -171,6 +171,10 @@ assert "valid-url" [ "$(jq -r '.architecture["64bit"].url' "$case5/bucket/mortar
 assert "curl-uses-max-time" grep -qx -- '--max-time' "$work/curl.args"
 assert "curl-uses-connect-timeout" grep -qx -- '--connect-timeout' "$work/curl.args"
 assert "curl-https-only" grep -qx -- '--proto' "$work/curl.args"
+assert "curl-uses-retry" grep -qx -- '--retry' "$work/curl.args"
+assert "curl-retry-count" grep -A1 -qx -- '--retry' "$work/curl.args" | grep -qx 18
+assert "curl-uses-retry-delay" grep -qx -- '--retry-delay' "$work/curl.args"
+assert "curl-retry-delay-10" grep -A1 -qx -- '--retry-delay' "$work/curl.args" | grep -qx 10
 unset CURL_ARGS_FILE
 
 # SUMS that list amd64 but omit arm64 must name the missing asset.
@@ -192,16 +196,20 @@ assert "missing-arm-leaves-manifest" [ "$after" = "$before" ]
 # A failed latest-tag lookup must name GitHub, not fall through unsigned.
 case7=$work/case-latest-fail
 setup_tree "$case7"
-export FIXTURE_DIR="$work/sums" CURL_FAIL=latest
+export FIXTURE_DIR="$work/sums" CURL_FAIL=latest CURL_ARGS_FILE="$work/latest.args"
 if run_update "$case7" >/dev/null 2>"$work/case7.err"; then
   assert "latest-fail-exits" false
 else
   assert "latest-fail-exits" true
 fi
 assert "latest-fail-names-github" grep -q GitHub "$work/case7.err"
+assert "latest-fetch-uses-retry" grep -qx -- '--retry' "$work/latest.args"
+assert "latest-fetch-retry-count" grep -A1 -qx -- '--retry' "$work/latest.args" | grep -qx 18
+assert "latest-fetch-uses-retry-delay" grep -qx -- '--retry-delay' "$work/latest.args"
+assert "latest-fetch-retry-delay-10" grep -A1 -qx -- '--retry-delay' "$work/latest.args" | grep -qx 10
 after=$(jq -c '{version, architecture}' "$case7/bucket/mortar.json")
 assert "latest-fail-leaves-manifest" [ "$after" = "$before" ]
-unset CURL_FAIL
+unset CURL_FAIL CURL_ARGS_FILE
 
 # An empty tag must not rewrite URLs to .../download/.
 case8=$work/case-empty-tag
