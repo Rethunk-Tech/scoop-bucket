@@ -172,9 +172,9 @@ assert "curl-uses-max-time" grep -qx -- '--max-time' "$work/curl.args"
 assert "curl-uses-connect-timeout" grep -qx -- '--connect-timeout' "$work/curl.args"
 assert "curl-https-only" grep -qx -- '--proto' "$work/curl.args"
 assert "curl-uses-retry" grep -qx -- '--retry' "$work/curl.args"
-assert "curl-retry-count" grep -A1 -qx -- '--retry' "$work/curl.args" | grep -qx 18
+assert "curl-retry-count" [ "$(grep -A1 -x -- '--retry' "$work/curl.args" | tail -1)" = 18 ]
 assert "curl-uses-retry-delay" grep -qx -- '--retry-delay' "$work/curl.args"
-assert "curl-retry-delay-10" grep -A1 -qx -- '--retry-delay' "$work/curl.args" | grep -qx 10
+assert "curl-retry-delay-10" [ "$(grep -A1 -x -- '--retry-delay' "$work/curl.args" | tail -1)" = 10 ]
 unset CURL_ARGS_FILE
 
 # SUMS that list amd64 but omit arm64 must name the missing asset.
@@ -204,9 +204,9 @@ else
 fi
 assert "latest-fail-names-github" grep -q GitHub "$work/case7.err"
 assert "latest-fetch-uses-retry" grep -qx -- '--retry' "$work/latest.args"
-assert "latest-fetch-retry-count" grep -A1 -qx -- '--retry' "$work/latest.args" | grep -qx 18
+assert "latest-fetch-retry-count" [ "$(grep -A1 -x -- '--retry' "$work/latest.args" | tail -1)" = 18 ]
 assert "latest-fetch-uses-retry-delay" grep -qx -- '--retry-delay' "$work/latest.args"
-assert "latest-fetch-retry-delay-10" grep -A1 -qx -- '--retry-delay' "$work/latest.args" | grep -qx 10
+assert "latest-fetch-retry-delay-10" [ "$(grep -A1 -x -- '--retry-delay' "$work/latest.args" | tail -1)" = 10 ]
 after=$(jq -c '{version, architecture}' "$case7/bucket/mortar.json")
 assert "latest-fail-leaves-manifest" [ "$after" = "$before" ]
 unset CURL_FAIL CURL_ARGS_FILE
