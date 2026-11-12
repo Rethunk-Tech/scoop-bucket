@@ -6,7 +6,7 @@ Operator steps: [HUMANS.md](HUMANS.md).
 
 | Path | Role |
 | --- | --- |
-| `bucket/*.json` | One Scoop manifest per packaged app. Mortar: `version`, `architecture.{64bit,arm64}` `url`+`hash`, `bin`, `shortcuts`, `checkver.github`, `notes`. No `autoupdate`, `env_set`, `persist`, `pre_install`, or `post_install`. |
+| `bucket/*.json` | One Scoop manifest per packaged app. Mortar: `version`, `architecture.{64bit,arm64}` `url`+`hash`, `bin`, `shortcuts`, `checkver.github`, `autoupdate` (hash from `SHA256SUMS`), `notes`. No `env_set`, `persist`, `pre_install`, or `post_install`. |
 | `scripts/update.sh` | No flags. Tool table at the `TABLE` heredoc (Scoop: mortar, rgit, gate, format-dispatch). `GNUPGHOME` is a temp dir; does not read project env keys. |
 | `scripts/mortar-archive-keyring.asc` | `FPR=D8B1C4C205C5FB3633CB8B9900B75959B637DCB5` must match `VALIDSIG`. |
 | `scripts/update.test.sh` | Test-only env: `FIXTURE_DIR`, `CURL_FAIL`, `CURL_ARGS_FILE`, `CURL_REDIRECT_URL`. |

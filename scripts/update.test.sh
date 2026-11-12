@@ -333,10 +333,17 @@ if grep -Eq 'update\.sh[[:space:]]+--' "$repo/HUMANS.md"; then
 else
   assert "humans-no-update-sh-flags" true
 fi
-if jq -e 'has("autoupdate")' "$repo/bucket/mortar.json" >/dev/null; then
-  assert "manifest-has-no-autoupdate" false
+if jq -e --arg v '$version' --arg b '$baseurl' '
+  .autoupdate.architecture["64bit"].url == ("https://github.com/Rethunk-Tech/mortar/releases/download/v" + $v + "/mortar-windows-amd64.exe#/mortar.exe")
+  and .autoupdate.architecture.arm64.url == ("https://github.com/Rethunk-Tech/mortar/releases/download/v" + $v + "/mortar-windows-arm64.exe#/mortar.exe")
+  and .autoupdate.architecture["64bit"].hash.url == ($b + "/SHA256SUMS")
+  and .autoupdate.architecture.arm64.hash.url == ($b + "/SHA256SUMS")
+  and (.autoupdate.architecture["64bit"].hash.regex | test("mortar-windows-amd64"))
+  and (.autoupdate.architecture.arm64.hash.regex | test("mortar-windows-arm64"))
+' "$repo/bucket/mortar.json" >/dev/null; then
+  assert "manifest-has-autoupdate" true
 else
-  assert "manifest-has-no-autoupdate" true
+  assert "manifest-has-autoupdate" false
 fi
 
 table_body() {
