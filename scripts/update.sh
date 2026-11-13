@@ -20,6 +20,8 @@ curl_get() {
   curl --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 --retry 18 --retry-delay 10 -fsSLo "$1" "$2"
 }
 sha256() { [[ $1 =~ ^[0-9a-fA-F]{64}$ ]]; }
+# older A B: version A sorts before B. releases/latest never names a prerelease, so sort -V order holds.
+older() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]; }
 hash_of() { awk -v f="$1" '$2 == f {print $1}' "$2"; }
 
 tmp=$(mktemp -d)
@@ -62,6 +64,11 @@ update_one() {
       exit 1
     fi
     echo "$name: no matching release" >&2
+    return 0
+  fi
+
+  if [ -f "bucket/$name.json" ] && older "$version" "$(jq -r .version "bucket/$name.json")"; then
+    echo "$name: latest $version is older than pinned $(jq -r .version "bucket/$name.json"); kept" >&2
     return 0
   fi
 

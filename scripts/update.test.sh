@@ -178,6 +178,20 @@ assert "curl-uses-retry-delay" grep -qx -- '--retry-delay' "$work/curl.args"
 assert "curl-retry-delay-10" [ "$(grep -A1 -x -- '--retry-delay' "$work/curl.args" | tail -1)" = 10 ]
 unset CURL_ARGS_FILE
 
+# A validly signed release older than the pinned one (an old release re-marked latest) must not roll the pin back.
+case_rb=$work/case-rollback
+setup_tree "$case_rb"
+export FIXTURE_DIR="$work/sums" CURL_REDIRECT_URL="https://github.com/Rethunk-Tech/mortar/releases/tag/v0.0.1"
+if run_update "$case_rb" >/dev/null 2>"$work/case-rb.err"; then
+  assert "rollback-exits-zero" true
+else
+  assert "rollback-exits-zero" false
+fi
+assert "rollback-says-older" grep -q 'mortar: latest 0.0.1 is older than pinned' "$work/case-rb.err"
+after=$(jq -c '{version, architecture}' "$case_rb/bucket/mortar.json")
+assert "rollback-leaves-manifest" [ "$after" = "$before" ]
+unset CURL_REDIRECT_URL
+
 # SUMS that list amd64 but omit arm64 must name the missing asset.
 case6=$work/case-no-arm
 setup_tree "$case6"
