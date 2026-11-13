@@ -7,7 +7,12 @@
 set -euo pipefail
 scripts=$(cd "$(dirname "$0")" && pwd)
 cd "$scripts/.."
+# shellcheck source=verify-sums.sh
+. "$scripts/verify-sums.sh"
 FPR=D8B1C4C205C5FB3633CB8B9900B75959B637DCB5
+RELEASE_FPR=${RELEASE_UPDATE_FPR:-827D05536BF33C8F634EDBE3E60A9B0F6E3F276E}
+RELEASE_KEYRING=${RELEASE_UPDATE_KEYRING:-$scripts/rethunk-release-signing.pub.asc}
+failed=0
 # GitHub's /releases/latest redirect is public. The Actions token is this bucket's
 # repo-scoped github.token and must not be sent to the upstream repos.
 # HEAD stays unfollowed: -L would land on the tag page and empty %{redirect_url}.
@@ -57,6 +62,12 @@ update_one() {
       exit 1
     fi
     echo "$name: no matching release" >&2
+    return 0
+  fi
+
+  # gpgsums tools: releases before signing started stay as pinned; only a newer version is verified.
+  if [ "$trust" = gpgsums ] && [ -f "bucket/$name.json" ] && [ "$(jq -r .version "bucket/$name.json")" = "$version" ]; then
+    echo "$name $version already current" >&2
     return 0
   fi
 
@@ -161,6 +172,13 @@ update_one() {
     fi
   fi
 
+  # Hashes are read above but pinned only after the signature over the file they came from checks out.
+  if [ "$trust" = gpgsums ] && { ! curl_get "$sums.asc" "$base/SHA256SUMS.asc" || ! verify_sums "$sums" "$sums.asc" "$RELEASE_KEYRING" "$RELEASE_FPR" "$tmp/gnupg-$name"; }; then
+    echo "error: $name $tag: SHA256SUMS not signed by $RELEASE_FPR; manifest left at the previous release" >&2
+    failed=1
+    return 0
+  fi
+
   dest="bucket/$name.json"
   u64="$base/$amd_file#/$bin"
   out="$tmp/$name.json"
@@ -168,6 +186,8 @@ update_one() {
   if [ ! -f "$dest" ]; then
     if [ "$trust" = per-asset ]; then
       notes="Run 'scoop update $name' after this bucket updates. Hashes are pinned from each asset's .sha256 file fetched over HTTPS (not GPG-signed)."
+    elif [ "$trust" = gpgsums ]; then
+      notes="Run 'scoop update $name' after this bucket updates. Hashes are pinned from the release SHA256SUMS, verified against the Rethunk.Tech release signing key."
     else
       notes="Run 'scoop update $name' after this bucket updates. Hashes are pinned from the release SHA256SUMS fetched over HTTPS (not GPG-signed)."
     fi
@@ -229,6 +249,7 @@ update_one() {
 
 # name|repo|trust|amd64-asset|arm64-asset|bin|homepage|license|description
 # trust=gpg: VALIDSIG on SHA256SUMS. trust=sha256sums: SHA256SUMS over TLS.
+# trust=gpgsums: SHA256SUMS.asc must VALIDSIG the Rethunk.Tech release key; checked for versions newer than the manifest's.
 # trust=per-asset: each <asset>.sha256 over TLS (no SHA256SUMS).
 # {VERSION} in an asset name is the tag without the leading v.
 # Windows Scoop: bare binaries, renamed via url #/bin. No Darwin/linux-only tools.
@@ -237,7 +258,8 @@ while IFS='|' read -r name repo trust amd_pat arm_pat bin homepage license desc;
   update_one "$name" "$repo" "$trust" "$amd_pat" "$arm_pat" "$bin" "$homepage" "$license" "$desc"
 done <<'TABLE'
 mortar|Rethunk-Tech/mortar|gpg|mortar-windows-amd64.exe|mortar-windows-arm64.exe|mortar.exe|https://mortar.rethunk.tech/|AGPL-3.0-only|Desktop mod manager for PC games: profiles, mod loader setup, Nexus Mods, GitHub and Thunderstore downloads, and shareable profiles
-rgit|Rethunk-Tech/rethunk-git-cli|sha256sums|rgit-v{VERSION}-windows-amd64.exe||rgit.exe|https://github.com/Rethunk-Tech/rethunk-git-cli|MIT|Symbol-granular git staging and commits
-gate|Rethunk-Tech/rethunk-gate-cli|sha256sums|gate-windows-amd64.exe||gate.exe|https://github.com/Rethunk-Tech/rethunk-gate-cli|MIT|Runs a project's gates concurrently, keeps every byte in a log
-format-dispatch|Rethunk-Tech/claude-format-hooks|per-asset|format-dispatch-windows-amd64.exe||format-dispatch.exe|https://github.com/Rethunk-Tech/claude-format-hooks|MIT|Claude Code PostToolUse format/lint dispatcher hook
+rgit|Rethunk-Tech/rethunk-git-cli|gpgsums|rgit-v{VERSION}-windows-amd64.exe||rgit.exe|https://github.com/Rethunk-Tech/rethunk-git-cli|MIT|Symbol-granular git staging and commits
+gate|Rethunk-Tech/rethunk-gate-cli|gpgsums|gate-windows-amd64.exe||gate.exe|https://github.com/Rethunk-Tech/rethunk-gate-cli|MIT|Runs a project's gates concurrently, keeps every byte in a log
+format-dispatch|Rethunk-Tech/claude-format-hooks|gpgsums|format-dispatch-windows-amd64.exe||format-dispatch.exe|https://github.com/Rethunk-Tech/claude-format-hooks|MIT|Claude Code PostToolUse format/lint dispatcher hook
 TABLE
+exit "$failed"

@@ -87,12 +87,13 @@ setup_tree() {
   cp "$repo/bucket/mortar.json" "$dest/bucket/mortar.json"
   sed "s/D8B1C4C205C5FB3633CB8B9900B75959B637DCB5/$fpr/" "$repo/scripts/update.sh" >"$dest/scripts/update.sh"
   chmod +x "$dest/scripts/update.sh"
+  cp "$repo/scripts/verify-sums.sh" "$dest/scripts/verify-sums.sh"
   cp "$work/throwaway.asc" "$dest/scripts/mortar-archive-keyring.asc"
 }
 
 run_update() {
   local dest=$1
-  env -u GNUPGHOME PATH="$PATH" FIXTURE_DIR="$FIXTURE_DIR" CURL_FAIL="${CURL_FAIL:-}" CURL_ARGS_FILE="${CURL_ARGS_FILE:-}" CURL_REDIRECT_URL="${CURL_REDIRECT_URL:-}" "$dest/scripts/update.sh"
+  env -u GNUPGHOME PATH="$PATH" FIXTURE_DIR="$FIXTURE_DIR" CURL_FAIL="${CURL_FAIL:-}" CURL_ARGS_FILE="${CURL_ARGS_FILE:-}" CURL_REDIRECT_URL="${CURL_REDIRECT_URL:-}" RELEASE_UPDATE_FPR="${RELEASE_UPDATE_FPR:-}" RELEASE_UPDATE_KEYRING="${RELEASE_UPDATE_KEYRING:-}" "$dest/scripts/update.sh"
 }
 
 before=$(jq -c '{version, architecture}' "$repo/bucket/mortar.json")
@@ -358,11 +359,11 @@ fi
 mortar_row=$(table_body | awk -F'|' '$1=="mortar"{print $2 "|" $3 "|" $4 "|" $5}')
 assert "table-mortar-row" [ "$mortar_row" = "Rethunk-Tech/mortar|gpg|mortar-windows-amd64.exe|mortar-windows-arm64.exe" ]
 rgit_row=$(table_body | awk -F'|' '$1=="rgit"{print $2 "|" $3 "|" $4 "|" $5}')
-assert "table-rgit-row" [ "$rgit_row" = "Rethunk-Tech/rethunk-git-cli|sha256sums|rgit-v{VERSION}-windows-amd64.exe|" ]
+assert "table-rgit-row" [ "$rgit_row" = "Rethunk-Tech/rethunk-git-cli|gpgsums|rgit-v{VERSION}-windows-amd64.exe|" ]
 gate_row=$(table_body | awk -F'|' '$1=="gate"{print $2 "|" $3 "|" $4}')
-assert "table-gate-row" [ "$gate_row" = "Rethunk-Tech/rethunk-gate-cli|sha256sums|gate-windows-amd64.exe" ]
+assert "table-gate-row" [ "$gate_row" = "Rethunk-Tech/rethunk-gate-cli|gpgsums|gate-windows-amd64.exe" ]
 fd_row=$(table_body | awk -F'|' '$1=="format-dispatch"{print $2 "|" $3 "|" $4 "|" $5}')
-assert "table-format-dispatch-row" [ "$fd_row" = "Rethunk-Tech/claude-format-hooks|per-asset|format-dispatch-windows-amd64.exe|" ]
+assert "table-format-dispatch-row" [ "$fd_row" = "Rethunk-Tech/claude-format-hooks|gpgsums|format-dispatch-windows-amd64.exe|" ]
 
 assert "skip-names-rgit" grep -q 'rgit: no matching release' "$work/case5.err"
 assert "skip-names-gate" grep -q 'gate: no matching release' "$work/case5.err"
@@ -371,10 +372,23 @@ assert "skip-no-rgit-json" [ ! -e "$case5/bucket/rgit.json" ]
 assert "skip-no-gate-json" [ ! -e "$case5/bucket/gate.json" ]
 assert "skip-no-format-dispatch-json" [ ! -e "$case5/bucket/format-dispatch.json" ]
 
+wrong_home_pre=$work/wrong-pre
+install -d -m 700 "$wrong_home_pre"
+GNUPGHOME=$wrong_home_pre gpg --batch --passphrase '' --quick-generate-key "scoop-bucket-wrongrel@example.com" ed25519 sign never
+# Release-key signing for gpgsums tools: a throwaway key stands in for the Rethunk.Tech release key.
+rel_home=$work/rel-keys
+install -d -m 700 "$rel_home"
+GNUPGHOME=$rel_home gpg --batch --passphrase '' --quick-generate-key "scoop-bucket-release@example.com" ed25519 sign never
+rel_fpr=$(GNUPGHOME=$rel_home gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" {print $10; exit}')
+GNUPGHOME=$rel_home gpg --batch --export --armor >"$work/rel.asc"
+sign_rel() { GNUPGHOME=$rel_home gpg --batch --yes --local-user "$rel_fpr" --detach-sign --armor -o "$1.asc" "$1"; }
+export RELEASE_UPDATE_FPR=$rel_fpr RELEASE_UPDATE_KEYRING=$work/rel.asc
+
 # Fixture release with rgit's SHA256SUMS creates the manifest, then a later run updates it.
 rgit_amd=cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 install -d "$work/sums/rethunk-git-cli"
 printf '%s  rgit-v9.9.9-windows-amd64.exe\n' "$rgit_amd" >"$work/sums/rethunk-git-cli/SHA256SUMS"
+sign_rel "$work/sums/rethunk-git-cli/SHA256SUMS"
 case_create=$work/case-create
 setup_tree "$case_create"
 export FIXTURE_DIR="$work/sums"
@@ -390,13 +404,13 @@ else
   assert "create-rgit-no-autoupdate" true
 fi
 assert "create-still-skips-gate" [ ! -e "$case_create/bucket/gate.json" ]
-if grep -q 'HTTPS (not GPG-signed)' "$case_create/bucket/rgit.json"; then
+if grep -q 'release signing key' "$case_create/bucket/rgit.json"; then
   assert "create-rgit-https-notes" true
 else
   assert "create-rgit-https-notes" false
 fi
 
-jq '.architecture["64bit"].hash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"' \
+jq '.version = "0.0.1" | .architecture["64bit"].hash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"' \
   "$case_create/bucket/rgit.json" >"$work/rgit-wrong.json"
 mv "$work/rgit-wrong.json" "$case_create/bucket/rgit.json"
 out=$(run_update "$case_create" 2>"$work/upd2.err")
@@ -408,19 +422,49 @@ else
   assert "update-rgit-not-already" true
 fi
 
-# format-dispatch pins from <asset>.sha256 even when a SHA256SUMS decoy is present.
-# Sidecar: first 64-hex token is a decoy; hash_of must bind $2 to the asset name.
+# Cut-over: a manifest already at the latest version (released before signing) is left alone even with no signature.
+jq '.architecture["64bit"].hash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"' \
+  "$case_create/bucket/rgit.json" >"$work/rgit-pinned.json"
+mv "$work/rgit-pinned.json" "$case_create/bucket/rgit.json"
+rm -f "$work/sums/rethunk-git-cli/SHA256SUMS.asc"
+if run_update "$case_create" >/dev/null 2>"$work/cut.err"; then
+  assert "cutover-current-unsigned-ok" true
+else
+  assert "cutover-current-unsigned-ok" false
+fi
+assert "cutover-leaves-manifest" [ "$(jq -r '.architecture["64bit"].hash' "$case_create/bucket/rgit.json")" = ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff ]
+
+# A newer release with no signature, or one from another key, is refused and the manifest stays.
+jq '.version = "0.0.1"' "$case_create/bucket/rgit.json" >"$work/rgit-old.json"
+mv "$work/rgit-old.json" "$case_create/bucket/rgit.json"
+if run_update "$case_create" >/dev/null 2>"$work/unsigned.err"; then
+  assert "unsigned-new-release-exits" false
+else
+  assert "unsigned-new-release-exits" true
+fi
+assert "unsigned-new-release-names-fpr" grep -q "$rel_fpr" "$work/unsigned.err"
+assert "unsigned-new-release-leaves-manifest" [ "$(jq -r .version "$case_create/bucket/rgit.json")" = 0.0.1 ]
+GNUPGHOME=$wrong_home_pre gpg --batch --yes --detach-sign --armor -o "$work/sums/rethunk-git-cli/SHA256SUMS.asc" "$work/sums/rethunk-git-cli/SHA256SUMS"
+if run_update "$case_create" >/dev/null 2>"$work/wrongrel.err"; then
+  assert "wrong-key-new-release-exits" false
+else
+  assert "wrong-key-new-release-exits" true
+fi
+assert "wrong-key-new-release-leaves-manifest" [ "$(jq -r .version "$case_create/bucket/rgit.json")" = 0.0.1 ]
+sign_rel "$work/sums/rethunk-git-cli/SHA256SUMS"
+
+# format-dispatch pins from the signed SHA256SUMS; hash_of must bind $2 to the asset name.
 fd_amd=dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 fd_decoy=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 install -d "$work/sums/claude-format-hooks"
-printf '%s  format-dispatch-windows-amd64.exe\n' "$fd_decoy" >"$work/sums/claude-format-hooks/SHA256SUMS"
-printf '%s  ignored.bin\n%s  format-dispatch-windows-amd64.exe\n' "$fd_decoy" "$fd_amd" >"$work/sums/claude-format-hooks/format-dispatch-windows-amd64.exe.sha256"
+printf '%s  ignored.bin\n%s  format-dispatch-windows-amd64.exe\n' "$fd_decoy" "$fd_amd" >"$work/sums/claude-format-hooks/SHA256SUMS"
+sign_rel "$work/sums/claude-format-hooks/SHA256SUMS"
 case_fd=$work/case-fd
 setup_tree "$case_fd"
 export FIXTURE_DIR="$work/sums"
 out=$(run_update "$case_fd" 2>"$work/fd.err")
 assert "create-prints-format-dispatch" grep -qx 'format-dispatch 9.9.9' <<<"$out"
-assert "create-fd-hash-from-sidecar" [ "$(jq -r '.architecture["64bit"].hash' "$case_fd/bucket/format-dispatch.json")" = "$fd_amd" ]
+assert "create-fd-hash-from-sums" [ "$(jq -r '.architecture["64bit"].hash' "$case_fd/bucket/format-dispatch.json")" = "$fd_amd" ]
 assert "create-fd-url" [ "$(jq -r '.architecture["64bit"].url' "$case_fd/bucket/format-dispatch.json")" = "https://github.com/Rethunk-Tech/claude-format-hooks/releases/download/v9.9.9/format-dispatch-windows-amd64.exe#/format-dispatch.exe" ]
 assert "create-fd-bin" [ "$(jq -r .bin "$case_fd/bucket/format-dispatch.json")" = "format-dispatch.exe" ]
 if jq -e '.architecture | has("arm64")' "$case_fd/bucket/format-dispatch.json" >/dev/null; then
@@ -428,7 +472,7 @@ if jq -e '.architecture | has("arm64")' "$case_fd/bucket/format-dispatch.json" >
 else
   assert "create-fd-no-arm64" true
 fi
-if grep -q '.sha256 file' "$case_fd/bucket/format-dispatch.json"; then
+if grep -q 'release signing key' "$case_fd/bucket/format-dispatch.json"; then
   assert "create-fd-sidecar-notes" true
 else
   assert "create-fd-sidecar-notes" false
