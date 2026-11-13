@@ -190,14 +190,14 @@ update_one() {
   u64="$base/$amd_file#/$bin"
   out="$tmp/$name.json"
   gh="https://github.com/$repo"
+  notes="Run 'scoop update $name' after this bucket updates. Hashes are pinned from "
+  case $trust in
+    per-asset) notes+="each asset's .sha256 file fetched over HTTPS (not GPG-signed)." ;;
+    gpgsums) notes+="the release SHA256SUMS, verified against the Rethunk.Tech release signing key." ;;
+    gpg) notes+="the release SHA256SUMS." ;;
+    *) notes+="the release SHA256SUMS fetched over HTTPS (not GPG-signed)." ;;
+  esac
   if [ ! -f "$dest" ]; then
-    if [ "$trust" = per-asset ]; then
-      notes="Run 'scoop update $name' after this bucket updates. Hashes are pinned from each asset's .sha256 file fetched over HTTPS (not GPG-signed)."
-    elif [ "$trust" = gpgsums ]; then
-      notes="Run 'scoop update $name' after this bucket updates. Hashes are pinned from the release SHA256SUMS, verified against the Rethunk.Tech release signing key."
-    else
-      notes="Run 'scoop update $name' after this bucket updates. Hashes are pinned from the release SHA256SUMS fetched over HTTPS (not GPG-signed)."
-    fi
     if [ -n "$arm_file" ]; then
       uarm="$base/$arm_file#/$bin"
       jq -n --arg v "$version" --arg desc "$desc" --arg home "$homepage" --arg lic "$license" \
@@ -234,15 +234,17 @@ update_one() {
     fi
   elif [ -n "$arm_file" ]; then
     uarm="$base/$arm_file#/$bin"
-    jq --arg v "$version" --arg u64 "$u64" --arg amd "$amd" --arg uarm "$uarm" --arg arm "$arm" '
+    jq --arg v "$version" --arg u64 "$u64" --arg amd "$amd" --arg uarm "$uarm" --arg arm "$arm" --arg notes "$notes" '
       .version = $v
+      | .notes = $notes
       | .architecture["64bit"].url = $u64
       | .architecture["64bit"].hash = $amd
       | .architecture.arm64.url = $uarm
       | .architecture.arm64.hash = $arm' "$dest" >"$out"
   else
-    jq --arg v "$version" --arg u64 "$u64" --arg amd "$amd" '
+    jq --arg v "$version" --arg u64 "$u64" --arg amd "$amd" --arg notes "$notes" '
       .version = $v
+      | .notes = $notes
       | .architecture["64bit"].url = $u64
       | .architecture["64bit"].hash = $amd' "$dest" >"$out"
   fi

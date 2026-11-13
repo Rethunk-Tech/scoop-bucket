@@ -424,11 +424,12 @@ else
   assert "create-rgit-https-notes" false
 fi
 
-jq '.version = "0.0.1" | .architecture["64bit"].hash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"' \
+jq '.version = "0.0.1" | .architecture["64bit"].hash = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" | .notes = "stale (not GPG-signed)"' \
   "$case_create/bucket/rgit.json" >"$work/rgit-wrong.json"
 mv "$work/rgit-wrong.json" "$case_create/bucket/rgit.json"
 out=$(run_update "$case_create" 2>"$work/upd2.err")
 assert "update-prints-rgit" grep -qx 'rgit 9.9.9' <<<"$out"
+assert "update-rewrites-notes-from-mode" grep -q 'release signing key' <(jq -r .notes "$case_create/bucket/rgit.json")
 assert "update-repairs-rgit" [ "$(jq -r '.architecture["64bit"].hash' "$case_create/bucket/rgit.json")" = "$rgit_amd" ]
 if grep -q 'already current' <<<"$(grep rgit "$work/upd2.err" || true)"; then
   assert "update-rgit-not-already" false
