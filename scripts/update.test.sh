@@ -348,10 +348,15 @@ if grep -Eq 'update\.sh[[:space:]]+--' "$repo/HUMANS.md"; then
 else
   assert "humans-no-update-sh-flags" true
 fi
-if jq -e 'has("autoupdate")' "$repo/bucket/mortar.json" >/dev/null; then
-  assert "manifest-has-no-autoupdate" false
+if jq -e '
+  (.autoupdate.architecture["64bit"].url | test("\\$version"))
+  and (.autoupdate.architecture.arm64.url | test("\\$version"))
+  and (.autoupdate.hash.url | test("SHA256SUMS"))
+  and (.autoupdate.hash.url | test("mortar-windows") | not)
+' "$repo/bucket/mortar.json" >/dev/null; then
+  assert "manifest-autoupdate-from-sums" true
 else
-  assert "manifest-has-no-autoupdate" true
+  assert "manifest-autoupdate-from-sums" false
 fi
 
 table_body() {
