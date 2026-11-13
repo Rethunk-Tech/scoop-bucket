@@ -17,14 +17,14 @@ move when `scripts/update.sh` rewrites the manifest after a GPG check of
 A maintainer who runs `scoop update` inside this bucket, or a user whose
 clone of the bucket is stale, sees a new version from `checkver` and no
 safe way for Scoop to fill hashes. The scheduled workflow in
-`.github/workflows/update.yml:22` is the only writer.
+`.github/workflows/update.yml:23` is the only writer.
 
 Decided shape: keep `checkver` as the version probe. Do not add Scoop
 `autoupdate` that hashes `mortar-windows-*.exe` over HTTPS. If Scoop later
 gains a way to take hashes from a signed `SHA256SUMS` (hashurl plus a
 signature check, or a `pre_update` that calls this repo's script), wire
 that here and drop the scheduled commit only after `scoop update` refuses
-an unsigned SUMS the same way `update.sh:51` refuses a missing `VALIDSIG`.
+an unsigned SUMS the same way `update.sh:107` refuses a missing `VALIDSIG`.
 
 Rejected: restoring `autoupdate` with `hash` downloaded from the exe. That
 is the unsigned path `dea4f99` removed. Rejected: deleting `checkver`.
@@ -37,11 +37,11 @@ the install contract of `bucket/mortar.json`.
 
 1. `bucket/mortar.json:24` `checkver` — GitHub tag probe, no sibling
    `autoupdate`.
-2. `scripts/update.sh:51` `VALIDSIG $FPR` — the check Scoop autoupdate
+2. `scripts/update.sh:107` `VALIDSIG $FPR` — the check Scoop autoupdate
    cannot perform today.
-3. `.github/workflows/update.yml:22` — the six-hour writer that calls
+3. `.github/workflows/update.yml:23` — the six-hour writer that calls
    `scripts/update.sh`.
-4. `README.md:19` — documents signed `SHA256SUMS` as the hash source.
+4. `README.md:24` — documents signed `SHA256SUMS` as the hash source.
 
 ### Traps
 
