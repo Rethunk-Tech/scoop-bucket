@@ -450,5 +450,51 @@ fi
 assert "revoked-key-mentions-fpr" grep -q "$fpr" "$work/case-rev.err"
 after=$(jq -c '{version, architecture}' "$case_rev/bucket/mortar.json")
 assert "revoked-key-leaves-manifest" [ "$after" = "$before" ]
+# gpg exits 0 and emits VALIDSIG for a signature from an expired key; update.sh must still refuse it.
+exp_home=$work/exp-keys
+install -d -m 700 "$exp_home"
+GNUPGHOME=$exp_home gpg --batch --passphrase '' --faked-system-time 20200101T000000 --quick-generate-key "scoop-bucket-expired@example.com" default default 1d
+exp_fpr=$(GNUPGHOME=$exp_home gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" {print $10; exit}')
+GNUPGHOME=$exp_home gpg --batch --export --armor >"$work/expired.asc"
+FIXTURE_DIR=$work/sums-expired
+install -d "$FIXTURE_DIR"
+cp "$work/sums/SHA256SUMS" "$FIXTURE_DIR/SHA256SUMS"
+GNUPGHOME=$exp_home gpg --batch --yes --faked-system-time 20200101T120000 --local-user "$exp_fpr" --detach-sign --armor -o "$FIXTURE_DIR/SHA256SUMS.asc" "$FIXTURE_DIR/SHA256SUMS"
+export FIXTURE_DIR
+case_exp=$work/case-expired
+setup_tree "$case_exp"
+sed -i "s/$fpr/$exp_fpr/" "$case_exp/scripts/update.sh"
+cp "$work/expired.asc" "$case_exp/scripts/mortar-archive-keyring.asc"
+if run_update "$case_exp" >/dev/null 2>"$work/case-exp.err"; then
+  assert "expired-key-exits" false
+else
+  assert "expired-key-exits" true
+fi
+assert "expired-key-mentions-fpr" grep -q "$exp_fpr" "$work/case-exp.err"
+after=$(jq -c '{version, architecture}' "$case_exp/bucket/mortar.json")
+assert "expired-key-leaves-manifest" [ "$after" = "$before" ]
+
+# A valid signature from a key other than the pinned fingerprint must not pin.
+wrong_home=$work/wrong-keys
+install -d -m 700 "$wrong_home"
+GNUPGHOME=$wrong_home gpg --batch --passphrase '' --quick-generate-key "scoop-bucket-wrong@example.com" default default never
+wrong_fpr=$(GNUPGHOME=$wrong_home gpg --batch --with-colons --list-secret-keys | awk -F: '$1 == "fpr" {print $10; exit}')
+GNUPGHOME=$wrong_home gpg --batch --export --armor >"$work/wrong.asc"
+FIXTURE_DIR=$work/sums-wrongkey
+install -d "$FIXTURE_DIR"
+cp "$work/sums/SHA256SUMS" "$FIXTURE_DIR/SHA256SUMS"
+GNUPGHOME=$wrong_home gpg --batch --yes --local-user "$wrong_fpr" --detach-sign --armor -o "$FIXTURE_DIR/SHA256SUMS.asc" "$FIXTURE_DIR/SHA256SUMS"
+export FIXTURE_DIR
+case_wrong=$work/case-wrong-key
+setup_tree "$case_wrong"
+cp "$work/wrong.asc" "$case_wrong/scripts/mortar-archive-keyring.asc"
+if run_update "$case_wrong" >/dev/null 2>"$work/case-wrong.err"; then
+  assert "wrong-key-exits" false
+else
+  assert "wrong-key-exits" true
+fi
+assert "wrong-key-mentions-pinned-fpr" grep -q "$fpr" "$work/case-wrong.err"
+after=$(jq -c '{version, architecture}' "$case_wrong/bucket/mortar.json")
+assert "wrong-key-leaves-manifest" [ "$after" = "$before" ]
 
 exit "$fail"
