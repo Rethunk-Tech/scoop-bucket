@@ -555,4 +555,18 @@ assert "wrong-key-mentions-pinned-fpr" grep -q "$fpr" "$work/case-wrong.err"
 after=$(jq -c '{version, architecture}' "$case_wrong/bucket/mortar.json")
 assert "wrong-key-leaves-manifest" [ "$after" = "$before" ]
 
+# verify_sums guards the gpgsums tools: an expired or revoked key's VALIDSIG must not pass it either.
+# shellcheck source=verify-sums.sh
+. "$repo/scripts/verify-sums.sh"
+if verify_sums "$work/sums-expired/SHA256SUMS" "$work/sums-expired/SHA256SUMS.asc" "$work/expired.asc" "$exp_fpr" "$work/vs-exp"; then
+  assert "verify-sums-refuses-expired-key" false
+else
+  assert "verify-sums-refuses-expired-key" true
+fi
+if verify_sums "$work/sums/SHA256SUMS" "$work/sums/SHA256SUMS.asc" "$work/throwaway-revoked.asc" "$fpr" "$work/vs-rev"; then
+  assert "verify-sums-refuses-revoked-key" false
+else
+  assert "verify-sums-refuses-revoked-key" true
+fi
+
 exit "$fail"
