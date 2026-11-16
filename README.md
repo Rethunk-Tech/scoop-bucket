@@ -25,6 +25,6 @@ heft and engined are omitted: they ship Linux-only assets (engined is a Bun app 
 
 Cut-over: manifests already pinned (released before signing) stay installable and are not re-checked; signature checks start with the first release after each tool's signing workflow. A tool with no matching release yet is skipped (no placeholder manifest).
 
-Update, uninstall, maintainer bump: [HUMANS.md](HUMANS.md). Layout and invariants: [AGENTS.md](AGENTS.md). Work not built: [TODO.md](TODO.md).
+Update, uninstall, maintainer bump: [HUMANS.md](HUMANS.md). Layout and invariants: [AGENTS.md](AGENTS.md).
 
 Manifest license: AGPL-3.0-only for Mortar (same key as `bucket/mortar.json`); MIT for the CLI tools.
