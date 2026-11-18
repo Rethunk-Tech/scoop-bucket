@@ -4,6 +4,8 @@
 
 [Scoop](https://scoop.sh) manifests for Rethunk tools that ship a Windows amd64 release asset.
 
+## Quick start
+
 ```powershell
 scoop bucket add mortar https://github.com/Rethunk-Tech/scoop-bucket
 scoop install mortar/mortar
@@ -11,6 +13,10 @@ scoop install mortar/rgit
 scoop install mortar/gate
 scoop install mortar/format-dispatch
 ```
+
+Update, uninstall, maintainer bump: [HUMANS.md](HUMANS.md).
+
+## Highlights
 
 | App | Upstream | Windows assets |
 | --- | --- | --- |
@@ -25,6 +31,13 @@ heft and engined are omitted: they ship Linux-only assets (engined is a Bun app 
 
 Cut-over: manifests already pinned (released before signing) stay installable and are not re-checked; signature checks start with the first release after each tool's signing workflow. A tool with no matching release yet is skipped (no placeholder manifest).
 
-Update, uninstall, maintainer bump: [HUMANS.md](HUMANS.md). Layout and invariants: [AGENTS.md](AGENTS.md).
+## Documentation
+
+| Doc | Role |
+| --- | --- |
+| [HUMANS.md](HUMANS.md) | Update, uninstall, maintainer bump |
+| [AGENTS.md](AGENTS.md) | Layout and invariants |
+
+## License
 
 Manifest license: AGPL-3.0-only for Mortar (same key as `bucket/mortar.json`); MIT for the CLI tools.
