@@ -1,0 +1,2 @@
+[deviations]
+patterns-repo-settings-00001 = "this repository holds Actions YAML, not Go, so CodeQL omits the Go autobuild matrix leg; all-checks is the required branch-protection aggregator"
