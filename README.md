@@ -25,7 +25,7 @@ Update, uninstall, maintainer bump: [HUMANS.md](HUMANS.md).
 | `gate` | [rethunk-gate-cli](https://github.com/Rethunk-Tech/rethunk-gate-cli) | amd64 |
 | `format-dispatch` | [claude-format-hooks](https://github.com/Rethunk-Tech/claude-format-hooks) | amd64 |
 
-heft and engined are omitted: they ship Linux-only assets (engined is a Bun app tree, not a native binary).
+heft and engined are omitted: they ship Linux-only assets, and engined has no Windows build.
 
 **Trust model.** Mortar pins from signed `SHA256SUMS` (`VALIDSIG` for `D8B1 C4C2 05C5 FB36 33CB  8B99 00B7 5959 B637 DCB5` on `SHA256SUMS.asc`). `rgit`, `gate` and `format-dispatch` pin from `SHA256SUMS` that must carry a `SHA256SUMS.asc` signed by the Rethunk.Tech release key `827D 0553 6BF3 3C8F 634E  DBE3 E60A 9B0F 6E3F 276E` (`scripts/rethunk-release-signing.pub.asc`); an unsigned or wrong-key release is refused and fails the run.
 
