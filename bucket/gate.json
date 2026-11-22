@@ -1,13 +1,13 @@
 {
-  "version": "0.10.0",
+  "version": "0.10.2",
   "description": "Runs a project's gates concurrently, keeps every byte in a log",
   "homepage": "https://github.com/Rethunk-Tech/rethunk-gate-cli",
   "license": "MIT",
   "notes": "Run 'scoop update gate' after this bucket updates. Hashes are pinned from the release SHA256SUMS, verified against the Rethunk.Tech release signing key.",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/Rethunk-Tech/rethunk-gate-cli/releases/download/v0.10.0/gate-windows-amd64.exe#/gate.exe",
-      "hash": "1d0f5c76864debc2674afaad9b2b5d5a7557d572d95884bf85c5a46c14525c56"
+      "url": "https://github.com/Rethunk-Tech/rethunk-gate-cli/releases/download/v0.10.2/gate-windows-amd64.exe#/gate.exe",
+      "hash": "72609946eef4a5ea19dfa157e8a04794d01007dcf0c81390e2927b0f3a20ad21"
     }
   },
   "bin": "gate.exe",
