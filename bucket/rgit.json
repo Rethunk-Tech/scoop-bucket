@@ -1,13 +1,13 @@
 {
-  "version": "3.0.6",
+  "version": "3.0.7",
   "description": "Symbol-granular git staging and commits",
   "homepage": "https://github.com/Rethunk-Tech/rethunk-git-cli",
   "license": "MIT",
   "notes": "Run 'scoop update rgit' after this bucket updates. Hashes are pinned from the release SHA256SUMS, verified against the Rethunk.Tech release signing key.",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/Rethunk-Tech/rethunk-git-cli/releases/download/v3.0.6/rgit-v3.0.6-windows-amd64.exe#/rgit.exe",
-      "hash": "1acf1691933f4c0a9a38cc54ba541304de8b991cbfe6141ccb1587f2d710f670"
+      "url": "https://github.com/Rethunk-Tech/rethunk-git-cli/releases/download/v3.0.7/rgit-v3.0.7-windows-amd64.exe#/rgit.exe",
+      "hash": "a3ffaf9425c23475b0ee35b0d60a6f008294b74146cf02c5237965809090585f"
     }
   },
   "bin": "rgit.exe",
